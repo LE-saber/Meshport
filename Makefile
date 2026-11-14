@@ -33,7 +33,7 @@ openapi:
 
 # release/meshport-server-<version>-linux-<arch>.tar.gz with bin/ deploy/ docs/
 release:
-	@for arch in amd64 arm64; do \
+	@set -eu; for arch in amd64 arm64; do \
 	  d=release/meshport-server-$(VERSION)-linux-$$arch; rm -rf $$d; mkdir -p $$d/bin; \
 	  GOOS=linux GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $$d/bin/meshportd ./cmd/meshportd; \
 	  GOOS=linux GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $$d/bin/meshctl ./cmd/meshctl; \
@@ -48,7 +48,7 @@ DESKTOP_LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_TARGETS ?= linux/amd64 linux/arm64 windows/amd64 windows/arm64
 desktop:
 	@mkdir -p release
-	@for t in $(DESKTOP_TARGETS); do \
+	@set -eu; for t in $(DESKTOP_TARGETS); do \
 	  os=$${t%/*}; arch=$${t#*/}; n=meshport-desktop-$(VERSION)-$$os-$$arch; d=release/$$n; mkdir -p $$d; \
 	  if [ $$os = windows ]; then \
 	    GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(DESKTOP_LDFLAGS) -H windowsgui" -o $$d/meshport.exe ./cmd/meshport || exit 1; \

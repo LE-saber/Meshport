@@ -31,6 +31,7 @@ Meshport 是私有通訊平台，包含：
 - [用戶端（桌面、Android、建置發布）](docs/CLIENT.md)
 - [架構與選型](docs/ARCHITECTURE.md)
 - [部署](docs/DEPLOY.md)
+- [云端构建与发行](docs/RELEASE.md)
 - [API](docs/API.md)
 - [openapi.json](docs/openapi.json)
 
