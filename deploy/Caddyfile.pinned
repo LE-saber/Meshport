@@ -3,6 +3,8 @@
 {
 	admin off
 	auto_https off
+	# IP clients omit SNI; select this certificate even behind NAT.
+	default_sni {$MESHPORT_CLIENT_HOST}
 }
 
 https://{$MESHPORT_CLIENT_HOST}:443 {
