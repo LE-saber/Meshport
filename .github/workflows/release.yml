@@ -115,7 +115,9 @@ jobs:
           MV=$(go list -m -f '{{.Version}}' golang.org/x/mobile)
           go install golang.org/x/mobile/cmd/gomobile@$MV golang.org/x/mobile/cmd/gobind@$MV
           gomobile init
-          gomobile bind -v -trimpath -ldflags "-s -w" -target=android/arm64,android/arm,android/amd64 -androidapi 24 \
+          # anet requires this linker flag on Go 1.23+ for Android interface discovery.
+          # https://github.com/wlynxg/anet#how-to-build-with-go-1230-or-later
+          gomobile bind -v -trimpath -ldflags "-s -w -checklinkname=0" -target=android/arm64,android/arm,android/amd64 -androidapi 24 \
             -o android/app/libs/meshcore.aar ./mobile/meshcore
       - uses: gradle/actions/setup-gradle@v4
         with:

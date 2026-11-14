@@ -31,6 +31,8 @@
 
 构建版本来自 `go.mod`；Android 构建同时使用工作流指定的 Java 和 Gradle 版本。
 
+Android 的网络接口依赖 `anet` 使用 Go 内部符号，因此 Go 1.23 及以上需要 `-ldflags "-checklinkname=0"`。工作流和 `make android-aar` 已包含该参数，依据 [anet 上游构建说明](https://github.com/wlynxg/anet#how-to-build-with-go-1230-or-later)。这个兼容参数仅用于 Android；升级 Go 或该依赖后仍需验证实机网络行为。
+
 ## Android 正式签名
 
 在仓库 **Settings → Secrets and variables → Actions** 配置：

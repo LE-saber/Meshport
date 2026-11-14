@@ -62,9 +62,9 @@ desktop:
 
 # Android: gomobile AAR, then the Gradle app (needs Android SDK + NDK, JDK 17, Gradle 8.9+).
 android-aar:
-	go install golang.org/x/mobile/cmd/gomobile@$$(go list -m -f '{{.Version}}' golang.org/x/mobile)
+	go install golang.org/x/mobile/cmd/gomobile@$$(go list -m -f '{{.Version}}' golang.org/x/mobile) golang.org/x/mobile/cmd/gobind@$$(go list -m -f '{{.Version}}' golang.org/x/mobile)
 	gomobile init
-	gomobile bind -v -trimpath -ldflags "-s -w" -target=android/arm64,android/arm,android/amd64 -androidapi 24 -o android/app/libs/meshcore.aar ./mobile/meshcore
+	gomobile bind -v -trimpath -ldflags "-s -w -checklinkname=0" -target=android/arm64,android/arm,android/amd64 -androidapi 24 -o android/app/libs/meshcore.aar ./mobile/meshcore
 
 android: android-aar
 	cd android && VERSION_NAME=$(VERSION) gradle assembleRelease
