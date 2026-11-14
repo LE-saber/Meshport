@@ -785,7 +785,7 @@ func (s *Server) hNodesPublic(c *Ctx) error {
 
 // ---------- grants requested by devices ----------
 
-var validDurations = map[string]time.Duration{"24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour, "90d": 90 * 24 * time.Hour, "perm": 0}
+var validDurations = map[string]time.Duration{"1h": time.Hour, "6h": 6 * time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour, "perm": 0}
 
 func (s *Server) hMyGrants(c *Ctx) error {
 	list, err := s.db.Grants(`g.requester_id=? OR g.target_id=?`, c.P.Device.ID, c.P.Device.ID)

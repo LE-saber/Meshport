@@ -4,6 +4,7 @@
   'use strict';
   window.MP_EXTRA = {
     zh: {
+      singleDevice: '每台裝置使用獨立的一次性註冊碼，請勿重複使用或公開分享。', enrollQR: '裝置註冊二維碼',
       logout: '登出', needCreds: '請輸入帳號與密碼', adminOnly: '只有管理員可以變更', account: '帳戶', addNode: '新增節點', grantDirect: '直接授予等級', noNodesTitle: '還沒有 frps 節點',
       noNodes: '新增一個 frps 節點後，裝置就能把本機服務發布到公網。', addUser: '新增使用者', thRole: '角色', createToken: '建立權杖',
       unblock: '解除封鎖', resolve: '解決', test: '測試', noHooks: '尚未設定 Webhook', noKeys: '沒有服務 API 金鑰', keysAdminOnly: '只有管理員可以檢視服務 API 金鑰',
@@ -66,6 +67,7 @@
       keyPending: '等待裝置輪替', dbSchema: '結構版本', dbRows: '資料列', dbPath: '路徑', detail: '詳情'
     },
     ja: {
+      singleDevice: '端末ごとに専用の使い切り登録コードを使用します。共有しないでください。', enrollQR: '端末登録 QR コード',
       logout: 'ログアウト', needCreds: 'ユーザー名とパスワードを入力してください', adminOnly: '管理者のみ変更できます', account: 'アカウント', addNode: 'ノード追加', grantDirect: 'レベルを付与', noNodesTitle: 'frps ノードがありません',
       noNodes: 'frps ノードを追加すると、デバイスがローカルサービスを公開できます。', addUser: 'ユーザー追加', thRole: 'ロール', createToken: 'トークン作成',
       unblock: 'ブロック解除', resolve: '解決', test: 'テスト', noHooks: 'Webhook は未設定です', noKeys: 'サービス API キーはありません', keysAdminOnly: 'サービス API キーは管理者のみ表示できます',
@@ -128,6 +130,7 @@
       keyPending: 'ローテーション待ち', dbSchema: 'スキーマ', dbRows: '行数', dbPath: 'パス', detail: '詳細'
     },
     en: {
+      singleDevice: 'Use a different single-use code for each device. Keep it private.', enrollQR: 'Device registration QR code',
       logout: 'Sign out', needCreds: 'Enter your username and password', adminOnly: 'Only admins can change this', account: 'Account', addNode: 'Add node', grantDirect: 'Grant level', noNodesTitle: 'No frps nodes yet',
       noNodes: 'Add an frps node so devices can publish local services to the internet.', addUser: 'Add user', thRole: 'Role', createToken: 'Create token',
       unblock: 'Unblock', resolve: 'Resolve', test: 'Test', noHooks: 'No webhooks yet', noKeys: 'No service API keys', keysAdminOnly: 'Only admins can see service API keys',

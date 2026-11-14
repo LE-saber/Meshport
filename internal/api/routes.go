@@ -65,7 +65,7 @@ func (s *Server) registerRoutes() {
 	A("GET", v+"/me/frpc", AuthDevice, "device", "Generated frpc.toml per node (run one frpc per node)", s.hMyFRPC)
 	A("GET", v+"/me/frpc/{node}", AuthDevice, "device", "Generated frpc.toml for one node (text/toml)", s.hMyFRPCNode)
 	A("GET", v+"/me/grants", AuthDevice, "access", "Level requests made by or for this device", s.hMyGrants)
-	A("POST", v+"/grants", AuthDevice, "access", "Request a level for another device (admin-level devices)", s.hRequestGrant, "{target, level, reason, duration: 24h|7d|30d|90d|perm}")
+	A("POST", v+"/grants", AuthDevice, "access", "Request a level for another device (admin-level devices)", s.hRequestGrant, "{target, level, reason, duration: 1h|6h|24h|7d|30d|perm}")
 
 	// ---- console: overview & devices
 	const ad = v + "/admin"

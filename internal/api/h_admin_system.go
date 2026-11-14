@@ -110,7 +110,7 @@ func (s *Server) sqliteVersion() string {
 }
 
 func (s *Server) hSystemStatus(c *Ctx) error {
-	return c.OK(map[string]any{"services": s.services(), "version": Version, "uptime_s": time.Since(s.started).Seconds(), "public_url": s.cfg.PublicURL})
+	return c.OK(map[string]any{"services": s.services(), "version": Version, "uptime_s": time.Since(s.started).Seconds(), "public_url": s.cfg.PublicURL, "enrollment_secure": s.enrollmentPin != "", "enrollment_url": s.cfg.EnrollmentURL})
 }
 
 func (s *Server) hRestartService(c *Ctx) error {

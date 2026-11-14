@@ -387,6 +387,18 @@ func (s *Server) clientIP(r *http.Request) string {
 	return host
 }
 
+func (s *Server) secureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && s.trusted(ip) && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
 func (s *Server) trusted(ip net.IP) bool {
 	for _, n := range s.trustedNets {
 		if n.Contains(ip) {

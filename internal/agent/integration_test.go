@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net"
@@ -25,10 +26,11 @@ import (
 	"meshport/internal/policy"
 	"meshport/internal/store"
 	"meshport/pkg/client"
+	"meshport/pkg/enrollment"
 )
 
 // testServer starts a real meshportd API server in-process.
-func testServer(t *testing.T) (url string, admin *client.Client) {
+func testServer(t *testing.T, pinned ...bool) (url string, admin *client.Client) {
 	t.Helper()
 	auth.SetFastHashing()
 	dir := t.TempDir()
@@ -39,6 +41,17 @@ func testServer(t *testing.T) (url string, admin *client.Client) {
 	cfg.TURN.URLs = nil // host candidates only: both agents run on this machine
 	cfg.FRP.PollInterval = time.Hour
 	cfg.FRP.Binary = os.Getenv("MESHPORT_FRPS")
+	var ts *httptest.Server
+	pin := ""
+	if len(pinned) > 0 && pinned[0] {
+		ts = httptest.NewTLSServer(nil)
+		pin = enrollment.Pin(ts.Certificate())
+		cfg.EnrollmentURL = ts.URL
+		cfg.EnrollmentCert = filepath.Join(dir, "server.crt")
+		if err := os.WriteFile(cfg.EnrollmentCert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw}), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := cfg.Normalize(); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +65,11 @@ func testServer(t *testing.T) (url string, admin *client.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(srv.Handler())
+	if ts == nil {
+		ts = httptest.NewServer(srv.Handler())
+	} else {
+		ts.Config.Handler = srv.Handler()
+	}
 	cfg.PublicURL = ts.URL
 	ctx, cancel := context.WithCancel(context.Background())
 	srv.Start(ctx)
@@ -61,7 +78,7 @@ func testServer(t *testing.T) (url string, admin *client.Client) {
 	if err := db.CreateUser(&store.User{Username: "admin", PasswordHash: h, Role: policy.RoleAdmin}); err != nil {
 		t.Fatal(err)
 	}
-	admin = client.New(ts.URL)
+	admin = client.NewWithPin(ts.URL, pin)
 	var out struct {
 		Token string `json:"token"`
 	}
@@ -76,9 +93,13 @@ func enroll(t *testing.T, admin *client.Client, level string) string {
 	t.Helper()
 	var out struct {
 		Token string `json:"token"`
+		Code  string `json:"join_code"`
 	}
 	if err := admin.Do(context.Background(), "POST", "/api/v1/admin/enroll-tokens", map[string]any{"level": level, "auto_approve": true, "uses": 1}, &out); err != nil {
 		t.Fatal(err)
+	}
+	if out.Code != "" {
+		return out.Code
 	}
 	return out.Token
 }
@@ -123,10 +144,40 @@ func lastMsg(a *Agent, peer string) *Message {
 }
 
 func TestAgentsEndToEnd(t *testing.T) {
+	testAgentsEndToEnd(t, false)
+}
+
+func TestAgentsEndToEndPinned(t *testing.T) {
+	testAgentsEndToEnd(t, true)
+}
+
+func TestPinnedAgentRestart(t *testing.T) {
+	url, admin := testServer(t, true)
+	a := startAgent(t, url, "persistent pin", enroll(t, admin, "member"))
+	state := a.st.get()
+	if state.ServerPin == "" {
+		t.Fatal("server pin was not saved")
+	}
+	a.Stop()
+	b, err := New(a.opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.st.get().ServerPin != state.ServerPin || b.myID() != state.DeviceID {
+		t.Fatal("saved identity or pin changed")
+	}
+	if err := b.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(b.Stop)
+	waitFor(t, "pinned identity reconnects after restart", 10*time.Second, func() bool { return b.Status() == "online" })
+}
+
+func testAgentsEndToEnd(t *testing.T, pinned bool) {
 	if testing.Short() {
 		t.Skip("integration test")
 	}
-	url, admin := testServer(t)
+	url, admin := testServer(t, pinned)
 	a := startAgent(t, url, "alpha", enroll(t, admin, "member"))
 	b := startAgent(t, url, "beta", enroll(t, admin, "member"))
 	aid, bid := a.myID(), b.myID()

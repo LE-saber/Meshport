@@ -18,7 +18,7 @@ function app(respond = () => ({})) {
     },
   };
   vm.createContext(scope);
-  for (const file of ['theme.js', 'strings.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), scope);
+  for (const file of ['theme.js', 'strings.js', 'zh-CN.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), scope);
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   const end = source.lastIndexOf('  boot();');
   assert.ok(end > 0);
@@ -43,7 +43,19 @@ test('grant form handles empty/inactive devices and provides permanent authoriza
   a.grantForm();
   assert.equal(a.ST.overlay, 'form');
   const durations = a.ST.fm.cfg.fields.find(f => f.k === 'duration').opts.map(o => o.v);
-  assert.ok(durations.includes('perm'));
+  assert.deepEqual(Array.from(durations), ['1h', '6h', '24h', '7d', '30d', 'perm']);
+});
+
+test('Simplified Chinese preserves original languages and device data', () => {
+  const {a,scope} = app();
+  for (const lang of ['zh','zhCN','ja','en']) {
+    a.ST.lang = lang; a.ST.page = 'devices';
+    a.D.devices = {items:[{id:'d1',name:'繁體裝置 🐱',status:'active',level:'guest'}]};
+    const view = a.adminVals(a.T.pal(false,'jade'));
+    assert.ok(view.s.fDuration);
+    assert.equal(view.devRows[0].name, '繁體裝置 🐱');
+  }
+  assert.equal(scope.window.MP_ZH_CN.fEnrollTitle, '注册新设备');
 });
 
 test('grant form submits target and duration with same-origin cookies and CSRF protection', async () => {

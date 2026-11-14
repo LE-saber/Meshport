@@ -27,7 +27,7 @@ type Settings struct {
 	AbnormalFailLimit    int    `json:"abnormal_fail_limit"` // failed logins per IP / 10 min before flagging + temp block
 	Theme                string `json:"theme"`               // light | dark | system (panel preference)
 	Accent               string `json:"accent"`              // jade | terracotta | rose | olive | graphite
-	Language             string `json:"language"`            // zh-TW | ja | en
+	Language             string `json:"language"`            // zh-TW | zh-CN | ja | en
 }
 
 func DefaultSettings() Settings {
@@ -78,8 +78,8 @@ func (s Settings) Validate() error {
 		return fmt.Errorf("theme must be light, dark or system")
 	case !in(s.Accent, "jade", "terracotta", "rose", "olive", "graphite"):
 		return fmt.Errorf("unknown accent")
-	case !in(s.Language, "zh-TW", "ja", "en"):
-		return fmt.Errorf("language must be zh-TW, ja or en")
+	case !in(s.Language, "zh-TW", "zh-CN", "ja", "en"):
+		return fmt.Errorf("language must be zh-TW, zh-CN, ja or en")
 	case s.RelayMaxFileMB < 1 || s.MessageRetentionDays < 1 || s.LogRetentionDays < 1 || s.FileRetentionHours < 1:
 		return fmt.Errorf("retention and size limits must be positive")
 	case s.BackupHour < -1 || s.BackupHour > 23 || s.BackupKeep < 1:

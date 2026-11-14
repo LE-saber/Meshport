@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"log/slog"
 	"meshport/internal/console"
 	"net"
@@ -27,22 +28,24 @@ import (
 	"meshport/internal/hub"
 	"meshport/internal/monitor"
 	"meshport/internal/store"
+	"meshport/pkg/enrollment"
 )
 
 // Version is set at build time with -ldflags "-X meshport/internal/api.Version=...".
 var Version = "1.0.0-dev"
 
 type Server struct {
-	consoleFS    fs.FS
-	consoleETags sync.Map // file name -> ETag for the embedded console
-	cfg          *config.Config
-	db           *store.DB
-	bus          *events.Bus
-	logs         *events.LogSink
-	log          *slog.Logger
-	hub          *hub.Hub
-	frp          *frp.Manager
-	mon          *monitor.Monitor
+	enrollmentPin string
+	consoleFS     fs.FS
+	consoleETags  sync.Map // file name -> ETag for the embedded console
+	cfg           *config.Config
+	db            *store.DB
+	bus           *events.Bus
+	logs          *events.LogSink
+	log           *slog.Logger
+	hub           *hub.Hub
+	frp           *frp.Manager
+	mon           *monitor.Monitor
 
 	mux         *http.ServeMux
 	routes      []Route
@@ -70,6 +73,19 @@ type Options struct {
 
 func New(o Options) (*Server, error) {
 	s := &Server{cfg: o.Config, db: o.DB, bus: o.Bus, logs: o.Logs, log: o.Logger, mux: http.NewServeMux(), started: time.Now(), consoleFS: console.FS()}
+	if s.cfg.EnrollmentCert != "" || s.cfg.EnrollmentURL != "" {
+		b, err := os.ReadFile(s.cfg.EnrollmentCert)
+		if err != nil {
+			return nil, fmt.Errorf("enrollment certificate: %w", err)
+		}
+		s.enrollmentPin, err = enrollment.PinFromPEM(b)
+		if err != nil {
+			return nil, err
+		}
+		if err = (enrollment.Invitation{Version: 1, Server: s.cfg.EnrollmentURL, Token: "mpe_validation", Pin: s.enrollmentPin}).Validate(); err != nil {
+			return nil, err
+		}
+	}
 	if s.bus == nil {
 		s.bus = events.NewBus()
 	}

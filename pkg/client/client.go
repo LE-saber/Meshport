@@ -25,11 +25,12 @@ import (
 )
 
 type Client struct {
-	BaseURL  string
-	HTTP     *http.Client
-	Token    string
-	DeviceID string
-	Key      ed25519.PrivateKey
+	configurationError error
+	BaseURL            string
+	HTTP               *http.Client
+	Token              string
+	DeviceID           string
+	Key                ed25519.PrivateKey
 }
 
 // APIError is a decoded {"error":{...}} response.
@@ -64,6 +65,9 @@ func sign(k ed25519.PrivateKey, msg []byte) string {
 
 // Do performs a JSON request. out may be nil.
 func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
+	if c.configurationError != nil {
+		return c.configurationError
+	}
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -82,7 +86,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.DoRequest(req)
 	if err != nil {
 		return err
 	}
@@ -106,6 +110,14 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 		return json.Unmarshal(data, out)
 	}
 	return nil
+}
+
+// DoRequest applies the client's transport trust to streaming requests as well.
+func (c *Client) DoRequest(req *http.Request) (*http.Response, error) {
+	if c.configurationError != nil {
+		return nil, c.configurationError
+	}
+	return c.HTTP.Do(req)
 }
 
 type RegisterRequest struct {
@@ -196,8 +208,11 @@ type Conn struct {
 
 // Connect opens the device WebSocket and waits for the hello frame.
 func (c *Client) Connect(ctx context.Context) (*Conn, error) {
+	if c.configurationError != nil {
+		return nil, c.configurationError
+	}
 	u := "ws" + strings.TrimPrefix(c.BaseURL, "http") + "/api/v1/ws"
-	ws, _, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + c.Token}}})
+	ws, _, err := websocket.Dial(ctx, u, &websocket.DialOptions{HTTPClient: c.HTTP, HTTPHeader: http.Header{"Authorization": {"Bearer " + c.Token}}})
 	if err != nil {
 		return nil, err
 	}

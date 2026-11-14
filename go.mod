@@ -7,6 +7,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/fatedier/frp v0.72.0
 	github.com/pion/webrtc/v4 v4.2.26
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/crypto v0.59.0
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
 	golang.org/x/sys v0.50.0

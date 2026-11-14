@@ -8,3 +8,4 @@ dev/
 *.log
 cmd/meshport/*.syso
 android/app/libs/*.aar
+scripts/i18n/node_modules/

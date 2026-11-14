@@ -53,6 +53,8 @@ type Config struct {
 	Listen         string   `yaml:"listen"`
 	InternalListen string   `yaml:"internal_listen"`
 	PublicURL      string   `yaml:"public_url"`
+	EnrollmentURL  string   `yaml:"enrollment_url,omitempty"`
+	EnrollmentCert string   `yaml:"enrollment_tls_cert,omitempty"` // public certificate served by the device TLS gateway
 	DataDir        string   `yaml:"data_dir"`
 	WebDir         string   `yaml:"web_dir"` // "" = embedded console, a path = custom build, "off" = no console
 	LogLevel       string   `yaml:"log_level"`

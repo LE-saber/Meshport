@@ -291,14 +291,17 @@ func (s *Server) hRegister(c *Ctx) error {
 		method = "enroll token"
 		h := auth.HashToken(req.EnrollToken)
 		var id, userID, groupID, level string
-		var auto bool
+		var auto, tlsRequired bool
 		var uses int
 		var exp int64
-		err := s.db.QueryRow(`SELECT id, COALESCE(user_id,''), COALESCE(group_id,''), level, auto_approve, uses_left, expires_at FROM enroll_tokens WHERE token_hash=?`, h).
-			Scan(&id, &userID, &groupID, &level, &auto, &uses, &exp)
+		err := s.db.QueryRow(`SELECT id, COALESCE(user_id,''), COALESCE(group_id,''), level, auto_approve, uses_left, expires_at, tls_required FROM enroll_tokens WHERE token_hash=?`, h).
+			Scan(&id, &userID, &groupID, &level, &auto, &uses, &exp, &tlsRequired)
 		if err != nil || uses <= 0 || exp < time.Now().Unix() {
 			s.loginRecord("device", "", req.Name, c, false, "invalid enrollment token", "enroll token")
 			return errf(401, "invalid_enroll_token", "enrollment token is invalid, used up or expired")
+		}
+		if tlsRequired && !s.secureRequest(c.R) {
+			return forbidden("this single-device invitation requires encrypted HTTPS")
 		}
 		res, err := s.db.Exec(`UPDATE enroll_tokens SET uses_left=uses_left-1 WHERE id=? AND uses_left>0`, id)
 		if n, _ := res.RowsAffected(); err != nil || n == 0 {

@@ -306,7 +306,7 @@ func (a *Agent) apiOnce(ctx context.Context, method, path string, body, out any)
 // newClient returns an SDK client bound to the saved identity and token.
 func (a *Agent) newClient() *client.Client {
 	s := a.st.get()
-	cl := client.New(s.Server)
+	cl := client.NewWithPin(s.Server, s.ServerPin)
 	cl.DeviceID = s.DeviceID
 	cl.Key = s.identity()
 	a.mu.Lock()

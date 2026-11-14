@@ -2,13 +2,16 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"time"
 
+	qrcode "github.com/skip2/go-qrcode"
 	"meshport/internal/auth"
 	"meshport/internal/policy"
 	"meshport/internal/store"
+	"meshport/pkg/enrollment"
 	"meshport/pkg/proto"
 )
 
@@ -641,6 +644,9 @@ func (s *Server) hCreateEnrollToken(c *Ctx) error {
 	if req.Uses > 1000 {
 		return badRequest("uses must be <= 1000")
 	}
+	if s.enrollmentPin != "" && req.Uses != 1 {
+		return badRequest("secure invitations are unique to one device; create a separate code for each device")
+	}
 	if req.TTLHours <= 0 {
 		req.TTLHours = 24
 	}
@@ -678,15 +684,33 @@ func (s *Server) hCreateEnrollToken(c *Ctx) error {
 		req.Level, auto, gid = policy.LevelGuest, false, nil
 	}
 	tok, h := auth.NewToken("mpe")
+	code, serverURL := tok, s.cfg.PublicURL
+	if s.enrollmentPin != "" {
+		serverURL = s.cfg.EnrollmentURL
+		var err error
+		code, err = enrollment.Encode(enrollment.Invitation{Version: 1, Server: serverURL, Token: tok, Pin: s.enrollmentPin})
+		if err != nil {
+			return err
+		}
+	}
+	png, err := qrcode.Encode(code, qrcode.Medium, 384)
+	if err != nil {
+		return err
+	}
 	id := store.NewID("enr")
 	exp := time.Now().Add(time.Duration(req.TTLHours) * time.Hour)
-	if _, err := s.db.Exec(`INSERT INTO enroll_tokens (id, token_hash, note, user_id, group_id, level, auto_approve, uses_left, created_by, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		id, h, trimTo(req.Note, 120), uid, gid, req.Level, auto, req.Uses, c.P.Name(), store.Now(), exp.Unix()); err != nil {
+	if _, err := s.db.Exec(`INSERT INTO enroll_tokens (id, token_hash, note, user_id, group_id, level, auto_approve, uses_left, created_by, created_at, expires_at,tls_required) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		id, h, trimTo(req.Note, 120), uid, gid, req.Level, auto, req.Uses, c.P.Name(), store.Now(), exp.Unix(), s.enrollmentPin != ""); err != nil {
 		return err
 	}
 	c.Audit("enroll_token.created", "enroll_token", id, map[string]any{"level": req.Level, "uses": req.Uses})
+	link := strings.TrimSuffix(serverURL, "/") + "/enroll#" + code
+	if s.enrollmentPin != "" {
+		link = "meshport://join#" + code
+	}
 	return c.JSON(201, map[string]any{"id": id, "token": tok, "expires_at": exp.UTC().Format(time.RFC3339),
-		"enroll_url": strings.TrimSuffix(s.cfg.PublicURL, "/") + "/enroll#" + tok})
+		"join_code": code, "server_url": serverURL, "server_pin": s.enrollmentPin, "single_device": s.enrollmentPin != "", "qr_png": "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
+		"enroll_url": link})
 }
 
 func (s *Server) hDeleteEnrollToken(c *Ctx) error {

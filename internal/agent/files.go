@@ -423,12 +423,14 @@ func max64(a, b int64) int64 {
 
 // rawDo performs a non-JSON request with the device token.
 func (a *Agent) rawDo(ctx context.Context, method, path string, hdr http.Header, body []byte) (*http.Response, error) {
+	cl := a.newClient()
+	cl.HTTP.Timeout = 0 // large transfers are governed by the caller's context
 	do := func() (*http.Response, error) {
 		var rd io.Reader
 		if body != nil {
 			rd = bytes.NewReader(body)
 		}
-		req, err := http.NewRequestWithContext(ctx, method, a.st.get().Server+"/api/v1"+path, rd)
+		req, err := http.NewRequestWithContext(ctx, method, cl.BaseURL+"/api/v1"+path, rd)
 		if err != nil {
 			return nil, err
 		}
@@ -438,7 +440,7 @@ func (a *Agent) rawDo(ctx context.Context, method, path string, hdr http.Header,
 		a.mu.Lock()
 		req.Header.Set("Authorization", "Bearer "+a.token)
 		a.mu.Unlock()
-		return transferClient.Do(req)
+		return cl.DoRequest(req)
 	}
 	resp, err := do()
 	if err == nil && resp.StatusCode == http.StatusUnauthorized {
@@ -450,8 +452,6 @@ func (a *Agent) rawDo(ctx context.Context, method, path string, hdr http.Header,
 	}
 	return resp, err
 }
-
-var transferClient = &http.Client{Timeout: 0}
 
 func apiErrFrom(resp *http.Response) error {
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))

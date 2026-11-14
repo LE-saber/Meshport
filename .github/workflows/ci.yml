@@ -34,6 +34,8 @@ jobs:
       - name: Check UI script
         run: |
           node --check internal/agent/web/app.js
+          node --check internal/agent/web/enrollment.js
+          node --test tests/client_i18n.test.cjs
           make console
 
       - name: Build frps/frpc for end-to-end tests

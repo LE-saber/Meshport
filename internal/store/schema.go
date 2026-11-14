@@ -361,4 +361,5 @@ CREATE TABLE settings (
   value TEXT NOT NULL
 );
 `,
+`ALTER TABLE enroll_tokens ADD COLUMN tls_required INTEGER NOT NULL DEFAULT 0;`,
 }

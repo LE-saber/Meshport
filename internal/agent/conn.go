@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"meshport/pkg/client"
+	"meshport/pkg/enrollment"
 	"meshport/pkg/proto"
 )
 
@@ -70,6 +71,16 @@ func normalizeServer(s string) (string, error) {
 
 // Setup registers this device with a server.
 func (a *Agent) Setup(ctx context.Context, req SetupRequest) (StateView, error) {
+	pin := ""
+	if strings.HasPrefix(strings.TrimSpace(req.EnrollToken), enrollment.Prefix) || strings.Contains(req.EnrollToken, "#"+enrollment.Prefix) {
+		i, err := enrollment.Parse(req.EnrollToken)
+		if err != nil {
+			return StateView{}, err
+		}
+		// The invitation supplies the complete, authenticated origin. A stale
+		// server text field cannot redirect its secret to another host.
+		req.Server, req.EnrollToken, pin = i.Server, i.Token, i.Pin
+	}
 	server, err := normalizeServer(req.Server)
 	if err != nil {
 		return StateView{}, err
@@ -82,7 +93,7 @@ func (a *Agent) Setup(ctx context.Context, req SetupRequest) (StateView, error) 
 		return StateView{}, errors.New("請輸入註冊碼，或使用帳號密碼")
 	}
 	s := a.st.get()
-	cl := client.New(server)
+	cl := client.NewWithPin(server, pin)
 	cl.Key = s.identity()
 	if s.DeviceID != "" { // re-registering: start from a fresh identity
 		a.resetIdentity()
@@ -102,6 +113,7 @@ func (a *Agent) Setup(ctx context.Context, req SetupRequest) (StateView, error) 
 		return StateView{}, friendlyErr(err)
 	}
 	if err := a.st.update(func(st *State) {
+		st.ServerPin = pin
 		st.Server, st.DeviceID, st.DID, st.Name, st.Level, st.Status = server, dev.ID, dev.DID, dev.Name, dev.Level, dev.Status
 	}); err != nil {
 		return StateView{}, err
@@ -139,6 +151,7 @@ func (a *Agent) Reset() {
 
 func (a *Agent) resetIdentity() {
 	_ = a.st.update(func(s *State) {
+		s.ServerPin = ""
 		s.DeviceID, s.DID, s.Level, s.Status, s.Identity, s.BoxKey = "", "", "", "", "", ""
 	})
 	// loadState regenerates missing keys

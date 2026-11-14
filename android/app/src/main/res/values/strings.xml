@@ -9,4 +9,5 @@
     <string name="saved_to">已儲存到「下載」：%1$s</string>
     <string name="save_failed">儲存失敗：%1$s</string>
     <string name="start_failed">核心啟動失敗：%1$s</string>
+    <string name="scan_enrollment">掃描管理員提供的 Meshport 註冊二維碼</string>
 </resources>

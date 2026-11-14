@@ -15,14 +15,16 @@
   });
   const DICT = T.dict();
   Object.keys(DICT).forEach((k) => Object.assign(DICT[k], (window.MP_EXTRA || {})[k] || {}));
-  const LANG_IN = { 'zh-TW': 'zh', zh: 'zh', 'zh-Hant': 'zh', ja: 'ja', 'ja-JP': 'ja', en: 'en', 'en-US': 'en' };
-  const LANG_OUT = { zh: 'zh-TW', ja: 'ja', en: 'en' };
+  DICT.zhCN = window.MP_ZH_CN;
+  const LANG_IN = { 'zh-CN': 'zhCN', 'zh-Hans': 'zhCN', 'zh-TW': 'zh', zh: 'zh', 'zh-Hant': 'zh', ja: 'ja', 'ja-JP': 'ja', en: 'en', 'en-US': 'en' };
+  const LANG_OUT = { zhCN: 'zh-CN', zh: 'zh-TW', ja: 'ja', en: 'en' };
   const FONTS = {
+    zhCN: 'Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif',
     zh: 'Inter, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif',
     ja: 'Inter, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif',
     en: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
   };
-  const LANG_TAGS = { zh: 'zh-Hant-TW', ja: 'ja', en: 'en' };
+  const LANG_TAGS = { zhCN: 'zh-Hans-CN', zh: 'zh-Hant-TW', ja: 'ja', en: 'en' };
   const PAGES = ['overview', 'devices', 'comms', 'frp', 'access', 'security', 'monitor', 'system'];
   const RANK = { viewer: 1, operator: 2, admin: 3 };
 
@@ -195,7 +197,7 @@
     document.title = (D.settings.console_name || 'Meshport') + ' · ' + S().consoleName;
   }
   function cycleLang() {
-    const next = { zh: 'ja', ja: 'en', en: 'zh' }[ST.lang] || 'zh';
+    const next = { zh: 'zhCN', zhCN: 'ja', ja: 'en', en: 'zh' }[ST.lang] || 'zh';
     pref('mp.lang', next);
     set({ lang: next });
     applySettings();
@@ -490,6 +492,7 @@
       if (f.type === 'switch') return Object.assign(b, { isSwitch: true, sw: sw(!!val, () => setField(f.k, !val), f.label) });
       if (f.type === 'area') return Object.assign(b, { isArea: true, value: val == null ? '' : String(val), ph: f.ph || '', set: (e) => setField(f.k, e.target.value) });
       if (f.type === 'info') return Object.assign(b, { isInfo: true, value: String(val == null ? '' : val), copy: f.copy ? () => copy(String(val)) : null });
+      if (f.type === 'image') return Object.assign(b, { isImage: true, value: f.value });
       return Object.assign(b, { isText: true, type: f.type || 'text', value: val == null ? '' : String(val), ph: f.ph || '', ac: f.ac || 'off',
         font: f.mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'inherit', set: (e) => setField(f.k, e.target.value) });
     });
@@ -517,7 +520,7 @@
   const num = (x, d) => { const n = parseInt(String(x).trim(), 10); return isNaN(n) ? d : n; };
   const levelOpts = () => { const s = S(); return [{ v: 'guest', label: s.lvGuest }, { v: 'member', label: s.lvMember }, { v: 'admin', label: s.lvAdmin }]; };
   const roleOpts = () => { const s = S(); return [{ v: 'viewer', label: s.roleViewer }, { v: 'operator', label: s.roleOperator }, { v: 'admin', label: s.roleAdmin }]; };
-  const durOpts = () => { const s = S(); return [{ v: '24h', label: s.d24h }, { v: '7d', label: s.d7 }, { v: '30d', label: s.d30 }, { v: '90d', label: s.d90 }, { v: 'perm', label: s.dPerm }]; };
+  const durOpts = () => { const s = S(); return [{ v: '1h', label: '1h' }, { v: '6h', label: '6h' }, { v: '24h', label: '24h' }, { v: '7d', label: '7d' }, { v: '30d', label: '30d' }, { v: 'perm', label: s.dPerm }]; };
   const scopeOpts = [{ v: 'read', label: 'read' }, { v: 'write', label: 'write' }, { v: 'admin', label: 'admin' }];
   const groupOpts = (extraNew) => {
     const s = S();
@@ -546,18 +549,21 @@
         { k: 'level', label: s.fLevel, type: 'seg', opts: levelOpts(), full: true },
         { k: 'group', label: s.fGroup, type: 'select', opts: groupOpts(true) },
         { k: 'groupNew', label: s.groupNew, when: (v) => v.group === '__new' },
-        { k: 'uses', label: s.fUses, type: 'number' },
+        { k: 'uses', label: s.fUses, type: 'number', when: () => !(D.status && D.status.enrollment_secure) },
         { k: 'ttl', label: s.fTtl, type: 'number' },
         { k: 'auto', label: s.fAutoApprove, hint: s.fAutoApproveHint, type: 'switch', full: true },
       ],
       onSave: async (v) => {
         const group = await ensureGroup(v);
         const r = await api('POST', '/admin/enroll-tokens', { note: v.note.trim(), level: v.level, group, uses: num(v.uses, 1), ttl_hours: num(v.ttl, 24), auto_approve: !!v.auto });
-        const srv = String((D.status && D.status.public_url) || location.origin).replace(/\/+$/, '');
-        setTimeout(() => infoSheet(s.fEnrollTitle, s.enrollOnce, [
-          [s.enrollCode, r.token], [s.enrollLink, r.enroll_url || srv + '/enroll#' + r.token], [s.serverUrl, srv],
-          [s.cliCmd, 'meshport setup --server ' + srv + ' --enroll ' + r.token],
-        ]), 0);
+        const srv = String(r.server_url || (D.status && D.status.public_url) || location.origin).replace(/\/+$/, '');
+        const code = r.join_code || r.token;
+        setTimeout(() => openForm({ title: s.fEnrollTitle, desc: r.single_device ? s.singleDevice : s.enrollOnce, noCancel: true, saveLabel: s.close,
+          fields: [
+            {type:'image',label:s.enrollQR,value:r.qr_png,full:true},
+            {type:'info',label:s.enrollCode,value:code,copy:true,full:true},
+            {type:'info',label:s.serverUrl,value:srv,copy:true,full:true},
+          ] }), 0);
         return true;
       },
     });
@@ -760,7 +766,7 @@
         { k: 'registration_approval', label: s.setApproval, type: 'seg', opts: [{ v: 'manual', label: s.apprManual }, { v: 'auto', label: s.apprAuto }] },
         { k: 'default_level', label: s.setDefaultLevel, type: 'seg', opts: levelOpts() },
         { k: 'discovery_scope', label: s.setDiscovery, type: 'seg', opts: [{ v: 'all', label: s.discAll }, { v: 'group', label: s.discGroup }, { v: 'user', label: s.discUser }] },
-        { k: 'language', label: s.setLang, type: 'seg', opts: [{ v: 'zh-TW', label: '繁中' }, { v: 'ja', label: '日本語' }, { v: 'en', label: 'English' }] },
+        { k: 'language', label: s.setLang, type: 'seg', opts: [{ v: 'zh-TW', label: '繁體中文' }, { v: 'zh-CN', label: '简体中文' }, { v: 'ja', label: '日本語' }, { v: 'en', label: 'English' }] },
         { k: 'relay_enabled', label: s.setRelay, hint: s.setRelayHint, type: 'switch', full: true },
         { k: 'relay_max_file_mb', label: s.setRelayMax, type: 'number' }, { k: 'message_retention_days', label: s.setMsgRet, type: 'number' },
         { k: 'file_retention_hours', label: s.setFileRet, type: 'number' }, { k: 'abnormal_fail_limit', label: s.setFailLimit, type: 'number' },

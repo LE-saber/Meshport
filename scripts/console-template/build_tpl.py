@@ -225,9 +225,11 @@ field_info = ('<sc-if value="{{f.isInfo}}"><div style="' + LABEL + '; grid-colum
               '<sc-if value="{{f.copy}}"><button type="button" onClick="{{f.copy}}" aria-label="{{s.copy}} {{f.label}}" style="' + BTN + '; width: 36px; height: 38px; padding: 0">'
               + svg('{{I.copy}}', 15) + '</button></sc-if></div>'
               '<sc-if value="{{f.hasHint}}"><span style="font-weight: 400; font-size: 12px; color: {{c.faint}}">{{f.hint}}</span></sc-if></div></sc-if>')
+field_image = ('<sc-if value="{{f.isImage}}"><div style="grid-column: 1 / -1; text-align: center">'
+               '<img src="{{f.value}}" alt="{{f.label}}" width="256" height="256" style="max-width: 100%; height: auto; background: #fff; border-radius: 12px; padding: 12px; box-sizing: border-box"></div></sc-if>')
 form_body = ('<sc-if value="{{fm.hasDesc}}"><p style="margin: 8px 0 0; font-size: 13.5px; color: {{c.muted}}; line-height: 1.55">{{fm.desc}}</p></sc-if>\n'
              '<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px">\n'
-             '<sc-for list="{{fm.fields}}" as="f">' + field_text + field_sel + field_seg + field_sw + field_area + field_info + '</sc-for>\n</div>\n'
+             '<sc-for list="{{fm.fields}}" as="f">' + field_image + field_text + field_sel + field_seg + field_sw + field_area + field_info + '</sc-for>\n</div>\n'
              '<sc-if value="{{fm.hasErr}}"><div style="margin-top: 14px; font-size: 13px; color: {{c.crit}}">{{fm.err}}</div></sc-if>')
 form_foot = ('<div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px">\n'
              '<sc-for list="{{fm.extra}}" as="b"><button type="button" onClick="{{b.go}}" style="' + BTN + '; height: 42px; padding: 0 18px; color: {{b.fg}}">{{b.label}}</button></sc-for>\n'

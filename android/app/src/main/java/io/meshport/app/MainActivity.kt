@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -29,6 +30,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -40,6 +44,35 @@ class MainActivity : ComponentActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var message: TextView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var coreOrigin: String? = null
+
+    private fun isCore(url: String?): Boolean {
+        if (url == null || coreOrigin == null) return false
+        val u = Uri.parse(url)
+        return "${u.scheme}://${u.authority}" == coreOrigin
+    }
+
+    private val scanCode = registerForActivityResult(ScanContract()) { result ->
+        val code = result.contents
+        if (code != null && isCore(web.url)) {
+            // JSON quoting prevents scanned content from becoming executable JavaScript.
+            web.evaluateJavascript("window.MeshportEnrollment.acceptScan(${JSONObject.quote(code)})", null)
+        }
+    }
+
+    inner class QRBridge {
+        @JavascriptInterface
+        fun scanEnrollment() {
+            runOnUiThread {
+                if (isCore(web.url)) scanCode.launch(ScanOptions().apply {
+                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    setPrompt(getString(R.string.scan_enrollment))
+                    setBeepEnabled(false)
+                    setOrientationLocked(false)
+                })
+            }
+        }
+    }
 
     private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data))
@@ -80,10 +113,11 @@ class MainActivity : ComponentActivity() {
             allowContentAccess = false
             setSupportMultipleWindows(false)
         }
+        web.addJavascriptInterface(QRBridge(), "MeshportNative")
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val u = req.url
-                if (u.host == "127.0.0.1" || u.host == "localhost") return false
+                if (isCore(u.toString())) return false
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, u))
                 } catch (_: ActivityNotFoundException) { }
@@ -142,6 +176,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun load(url: String) {
+        val u = Uri.parse(url)
+        if (u.scheme != "http" || u.host != "127.0.0.1") return
+        coreOrigin = "${u.scheme}://${u.authority}"
         message.visibility = View.GONE
         if (web.url == null || !web.url!!.startsWith(url.substringBefore("/auth"))) web.loadUrl(url)
     }

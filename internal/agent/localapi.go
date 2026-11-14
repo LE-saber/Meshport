@@ -37,7 +37,7 @@ func (a *Agent) localHandler() http.Handler {
 	files := http.FileServer(http.FS(static))
 	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'none'; object-src 'none'")
 		files.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("GET /auth", func(w http.ResponseWriter, r *http.Request) {
@@ -348,6 +348,7 @@ func (a *Agent) hPatchSettings(w http.ResponseWriter, r *http.Request) (any, err
 		Autostart   *bool             `json:"autostart"`
 		Notify      *bool             `json:"notify"`
 		Theme       *string           `json:"theme"`
+		Language    *string           `json:"language"`
 		Name        *string           `json:"name"`
 	}
 	if err := readJSON(r, &req); err != nil {
@@ -355,6 +356,9 @@ func (a *Agent) hPatchSettings(w http.ResponseWriter, r *http.Request) (any, err
 	}
 	if req.Mode != nil && !validMode(*req.Mode) {
 		return nil, errors.New("mode 必須是 auto、p2p 或 relay")
+	}
+	if req.Language != nil && *req.Language != "zh-TW" && *req.Language != "zh-CN" {
+		return nil, errors.New("language must be zh-TW or zh-CN")
 	}
 	if req.DownloadDir != nil {
 		d := strings.TrimSpace(*req.DownloadDir)
@@ -410,6 +414,9 @@ func (a *Agent) hPatchSettings(w http.ResponseWriter, r *http.Request) (any, err
 		}
 		if req.Theme != nil {
 			s.Settings.Theme = *req.Theme
+		}
+		if req.Language != nil {
+			s.Settings.Language = *req.Language
 		}
 		if req.Name != nil {
 			s.Name = strings.TrimSpace(*req.Name)

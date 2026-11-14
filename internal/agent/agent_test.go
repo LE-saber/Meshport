@@ -18,6 +18,7 @@ func newTestAgent(t *testing.T) *Agent {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { a.logs.Close() })
 	return a
 }
 
