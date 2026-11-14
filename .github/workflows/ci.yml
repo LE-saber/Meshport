@@ -32,7 +32,11 @@ jobs:
           GOOS=android GOARCH=arm64 go vet ./mobile/meshcore/
 
       - name: Check UI script
-        run: node --check internal/agent/web/app.js
+        run: |
+          node --check internal/agent/web/app.js
+          make console
+          git diff --exit-code -- web/console/index.html
+          node --test tests/console_api.test.cjs
 
       - name: Build frps/frpc for end-to-end tests
         run: make frp-bins

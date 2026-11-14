@@ -3,7 +3,7 @@ LDFLAGS := -s -w -X meshport/internal/api.Version=$(VERSION)
 FRP_VERSION ?= 0.72.0
 BIN := bin
 
-.PHONY: build test race e2e frp-bins openapi release desktop android-aar android clean
+.PHONY: build test race e2e frp-bins openapi console release desktop android-aar android clean
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/meshportd ./cmd/meshportd
@@ -32,12 +32,17 @@ openapi:
 	go run ./cmd/meshportd openapi > docs/openapi.json
 
 # release/meshport-server-<version>-linux-<arch>.tar.gz with bin/ deploy/ docs/
-release:
+console:
+	python3 tools/build-console.py
+	node --check web/console/design.js
+	node --check web/console/app.js
+
+release: console
 	@set -eu; for arch in amd64 arm64; do \
 	  d=release/meshport-server-$(VERSION)-linux-$$arch; rm -rf $$d; mkdir -p $$d/bin; \
 	  GOOS=linux GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $$d/bin/meshportd ./cmd/meshportd; \
 	  GOOS=linux GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $$d/bin/meshctl ./cmd/meshctl; \
-	  cp -r deploy docs README.md $$d/; chmod +x $$d/deploy/install.sh; \
+	  cp -r deploy docs README.md $$d/; cp -r web/console $$d/web; chmod +x $$d/deploy/install.sh; \
 	  tar -C release -czf $$d.tar.gz $$(basename $$d); \
 	  (cd release && sha256sum $$(basename $$d).tar.gz >> SHA256SUMS); \
 	done

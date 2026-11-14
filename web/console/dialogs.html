@@ -1,0 +1,25 @@
+<sc-if value="{{authenticated}}">
+<div class="console-tools" style="background: {{c.sheet}}; color: {{c.text}}; border-color: {{c.hair}}">
+<span>{{username}} · {{role}} · {{connectionState}} · {{loadedAt}}</span>
+<button onClick="{{refresh}}" disabled="{{busy}}">刷新</button><button onClick="{{account}}">修改密码</button><button onClick="{{logout}}" disabled="{{busy}}">退出</button>
+</div>
+<sc-if value="{{hasError}}"><div class="error global-error" role="alert">{{error}}</div></sc-if>
+<sc-if value="{{hasLoadErrors}}"><pre class="error global-error" role="alert">{{loadErrors}}</pre></sc-if>
+<sc-if value="{{hasManager}}"><div class="modal-backdrop"><section class="modal wide" role="dialog" aria-modal="true" aria-label="{{managerTitle}}" style="background: {{c.sheet}}; color: {{c.text}}">
+<header><h2>{{managerTitle}}</h2><button onClick="{{closeManager}}">关闭</button></header>
+<sc-if value="{{managerCanCreate}}"><button class="primary" onClick="{{managerCreate}}">新增</button></sc-if>
+<sc-if value="{{managerEmpty}}"><p class="muted">暂无记录</p></sc-if>
+<sc-for list="{{managerRows}}" as="row"><article class="resource-row"><strong>{{row.title}}</strong><p>{{row.detail}}</p><div class="actions"><sc-for list="{{row.actions}}" as="a"><button disabled="{{a.disabled}}" onClick="{{a.run}}">{{a.label}}</button></sc-for></div></article></sc-for>
+</section></div></sc-if>
+<sc-if value="{{hasDialog}}"><div class="modal-backdrop"><form class="modal" role="dialog" aria-modal="true" aria-label="{{dialogTitle}}" onSubmit="{{submitForm}}" style="background: {{c.sheet}}; color: {{c.text}}">
+<header><h2>{{dialogTitle}}</h2><button type="button" onClick="{{closeDialog}}" disabled="{{busy}}">关闭</button></header>
+<div class="form-fields"><sc-for list="{{dialogFields}}" as="f"><label>{{f.label}}
+<sc-if value="{{f.isInput}}"><input type="{{f.inputType}}" value="{{f.value}}" onChange="{{f.change}}" required="{{f.required}}" autoComplete="off"></sc-if>
+<sc-if value="{{f.isSelect}}"><select value="{{f.value}}" onChange="{{f.change}}" required="{{f.required}}"><option value="">请选择</option><sc-for list="{{f.options}}" as="o"><option value="{{o.value}}">{{o.label}}</option></sc-for></select></sc-if>
+<sc-if value="{{f.isCheckbox}}"><input type="checkbox" checked="{{f.checked}}" onChange="{{f.change}}"></sc-if>
+</label></sc-for></div>
+<sc-if value="{{dialogError}}"><p class="error" role="alert">{{dialogError}}</p></sc-if>
+<footer><button type="button" onClick="{{closeDialog}}" disabled="{{busy}}">取消</button><button class="primary" type="submit" disabled="{{busy}}">保存并应用</button></footer>
+</form></div></sc-if>
+<sc-if value="{{hasResult}}"><div class="modal-backdrop"><section class="modal wide" role="dialog" aria-modal="true" aria-label="{{result.title}}" style="background: {{c.sheet}}; color: {{c.text}}"><header><h2>{{result.title}}</h2><button onClick="{{closeResult}}">关闭</button></header><pre class="result" tabIndex="0">{{result.text}}</pre><footer><button onClick="{{copyResult}}">复制</button></footer></section></div></sc-if>
+</sc-if>

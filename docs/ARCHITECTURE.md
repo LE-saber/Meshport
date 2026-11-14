@@ -2,7 +2,7 @@
 
 ## 1. 現況與範圍
 
-- 本 repo 原本是空的。前端目前只有 Claude Design 畫布上的互動 Demo：手機 6 頁、桌面 5 頁、伺服器控制台 8 頁（Meshport 界面 Demo）。後端的資料模型、欄位與動作，都是照這些 Demo 的實際內容整理出來的。前端設計沒有重做。
+- 後端的資料模型、欄位與動作依照原 Design Demo 整理。伺服器控制台的八頁設計已在 `web/console` 接入真實 API、Cookie 登入與 WebSocket；桌面和 Android 共用 `internal/agent/web`。前端設計沿用原有佈局。
 - 這一階段完成的是**伺服器端**：
   - 統一身分、裝置、權限、API。
   - 訊息中繼、P2P 信令、TURN 憑證。

@@ -32,6 +32,7 @@ Meshport 是私有通訊平台，包含：
 - [架構與選型](docs/ARCHITECTURE.md)
 - [部署](docs/DEPLOY.md)
 - [云端构建与发行](docs/RELEASE.md)
+- [服务器管理控制台](docs/CONSOLE.md)
 - [API](docs/API.md)
 - [openapi.json](docs/openapi.json)
 
@@ -79,7 +80,7 @@ git tag v1.1.0 && git push origin v1.1.0
 
 ## 目前狀態與下一步
 
-1. **控制台前端**：目前只有設計 Demo（`Admin.dc.html`）。下一步是把它接到本 API：每一頁對應的端點見 ARCHITECTURE §7，即時資料用 `/admin/stream`。建置輸出放進 `web_dir`，就會由 meshportd 直接提供。
+1. **控制台前端**：`web/console` 保留原設計 Demo 的八頁佈局，已接入真實 API、Cookie 登入和 `/admin/stream` 即時資料。`make console` 產生入口頁；服務端發行包包含控制台，安裝程式會設定 `web_dir`。詳見 [控制台說明](docs/CONSOLE.md)。
 2. **用戶端實機驗證**：以下都還沒在實機上測過，請在發布前實際試用：
    - Windows 與 Linux 桌面的視窗、系統匣、通知。
    - Android App。

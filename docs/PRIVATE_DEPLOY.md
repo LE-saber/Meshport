@@ -42,7 +42,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCo
 
 ## 页面与管理凭据
 
-当前服务器入口提供服务状态和 `/api/docs`。原服务器控制台仍为设计 Demo，尚未完成 API 对接；入口页不会展示模拟管理数据。
+服务器入口使用已接入真实 API 的管理控制台。先登录再管理设备、FRP、权限、安全和系统；`/api/docs` 保留完整 API 文档。页面布局、主题和语言选项沿用原设计 Demo，显示的记录与指标来自服务器。
 
 管理员用户名为 `admin`。首次生成的密码仅保存在服务器 root 可读文件中，可以通过 SSH 读取：
 
