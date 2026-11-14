@@ -28,4 +28,4 @@ make release VERSION=1.0.0
 
 从外置页面升级时，先备份二进制、配置和数据库，再原子替换 `meshportd`，清空旧的 web_dir 并重启。不要重新初始化数据库。回滚时恢复原二进制及配置。
 
-私有部署保持 `listen: 127.0.0.1:18080`，不配置公开 HTTP 反向代理。已有 SSH 一键访问脚本继续可用，详见 [PRIVATE_DEPLOY.md](PRIVATE_DEPLOY.md)。
+管理入口保持 `listen: 127.0.0.1:18080`。手机第一版连接测试由单独的 HTTP 网关只转发设备接口，管理页面和管理 API 仍只走 SSH。已有 SSH 一键访问脚本继续可用，详见 [PRIVATE_DEPLOY.md](PRIVATE_DEPLOY.md)。

@@ -1,0 +1,16 @@
+# HTTP device entry for first-version testing. The console and its
+# authentication/API remain on the loopback listener, reached through SSH.
+# Clients must explicitly enter http://<server> to avoid defaulting to HTTPS.
+{
+	admin off
+}
+
+:80 {
+	@devices path /healthz /api/v1/devices/register /api/v1/devices/auth/challenge /api/v1/devices/auth/login /api/v1/ws /api/v1/me/device /api/v1/me/device/* /api/v1/peers /api/v1/messages /api/v1/messages/receipts /api/v1/rtc/ice-servers /api/v1/files /api/v1/files/* /api/v1/frp/nodes /api/v1/me/mappings /api/v1/me/mappings/* /api/v1/me/frpc /api/v1/me/frpc/* /api/v1/me/grants /api/v1/grants
+	handle @devices {
+		reverse_proxy 127.0.0.1:18080
+	}
+	handle {
+		respond 404
+	}
+}

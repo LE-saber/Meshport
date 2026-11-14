@@ -1,10 +1,11 @@
-# 仅通过 SSH 访问的部署
+# 管理入口仅通过 SSH 访问的部署
 
 以下为 Ubuntu 24.04 / amd64 的私有访问部署方案。实际主机名、SSH 账号和凭据应保存在本机配置中，不提交到公共仓库。
 
 | 项目 | 地址或位置 |
 |---|---|
-| 管理入口、REST API、设备 WebSocket | 服务器 `127.0.0.1:18080` |
+| 管理入口与后端监听 | 服务器 `127.0.0.1:18080` |
+| 第一版客户端测试入口 | `http://<服务器域名>`，端口 80，仅转发设备接口 |
 | frps 内部授权插件 | 服务器 `127.0.0.1:17401` |
 | Meshport 独立 frps | `<服务器地址>:7001` |
 | Meshport frps dashboard | 服务器 `127.0.0.1:7501` |
@@ -13,7 +14,23 @@
 | 程序 | `/opt/meshport/bin` |
 | 服务入口页面 | 内嵌于 `meshportd`，`web_dir: ""` |
 
-不配置公开的 HTTP 反向代理，也不开放管理端口。服务器原有的 frps 继续使用 `7000`，与 Meshport 的 frps 分开运行。设备 API 与管理页面共用监听地址，因此客户端接入也需要 SSH 隧道或其他私有通道。
+后端与管理端口不对公网开放。第一版手机测试采用 `deploy/Caddyfile.client` 的 HTTP 网关：只转发健康检查、注册、设备签名登录、设备 WebSocket、设备自助操作和传输接口，其余路径全部返回 404。控制台静态资源、控制台登录、`/api/v1/admin/*`、内部 FRP 插件和 API 文档均不对公网提供。服务器原有 frps 的 `7000` 与 Meshport 的 `7001` 分开运行。
+
+客户端必须完整填写 `http://<服务器域名>`。只填域名会由当前客户端默认补成 HTTPS；本次 HTTP 测试入口不提供 SSL。注册和登录由 Go 客户端核心发起，Android WebView 仍只访问自己的回环页面，无需放宽 WebView 的网络安全配置。
+
+服务器 `public_url` 设为上述客户端地址，`listen` 仍为 `127.0.0.1:18080`，`tls.mode` 保持 off。管理页面继续使用下面的 SSH 隧道，不能使用公开域名直接打开。
+
+## 设备测试网关
+
+安装官方 Caddy 二进制到 `/opt/meshport/bin/caddy`，将 `deploy/Caddyfile.client` 复制到 `/etc/meshport/Caddyfile.client`，将 `deploy/meshport-gateway.service` 安装到 `/etc/systemd/system/`，并创建由 meshport 用户拥有的 `/var/lib/meshport-gateway`。校验配置后运行：
+
+```bash
+/opt/meshport/bin/caddy validate --config /etc/meshport/Caddyfile.client --adapter caddyfile
+systemctl daemon-reload
+systemctl enable --now meshport-gateway
+```
+
+此配置供用户明确选择的明文连接测试使用；后续 HTTPS、证书固定等功能单独升级。不要用转发整个 `/api/v1/*` 的配置替代设备接口白名单。
 
 ## Windows 一键访问
 
