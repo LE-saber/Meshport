@@ -106,7 +106,7 @@ turn:
 frp:
   auth_token: <frps auth.token>
   binary: /opt/meshport/bin/frps
-web_dir: ""                     # 放正式控制台前端的建置輸出，會以 SPA 方式提供
+web_dir: ""                     # 留空＝使用內建控制台；填路徑＝改用自訂前端建置；"off"＝不提供控制台
 ```
 
 其餘可在執行期調整的設定都在控制台「系統與 API → 設定」，例如開放註冊、核准方式、可見範圍、中繼開關、保存天數、備份排程、主題顏色。對應的 API 是 `PATCH /api/v1/admin/system/settings`。

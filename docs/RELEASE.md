@@ -50,4 +50,4 @@ Android 的网络接口依赖 `anet` 使用 Go 内部符号，因此 Go 1.23 及
 
 也可以向已经验证的提交推送 `v<版本>` 标签；标签会触发 Release 工作流并直接公开发布。构建测试阶段优先使用手动草稿流程。
 
-服务器发行包包含 `web/console` 的管理控制台；发布时运行 `make console`，CI 会检查脚本语法与生成文件一致性。管理控制台仍需在目标环境验证登录、API 和 WebSocket 连接，详见 `docs/CONSOLE.md`。
+服务器管理控制台来自 `internal/console/web`，内嵌进发行版二进制；发布时运行 `make console`，检查脚本语法并运行前端回归测试。管理控制台仍需在目标环境验证登录、API 和 WebSocket 连接，详见 `docs/CONSOLE.md`。升级外置页面部署时应将旧的 web_dir 置空。SSH 访问脚本仍随 deploy/access 打包。

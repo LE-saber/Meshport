@@ -3,10 +3,13 @@
 package api
 
 import (
+	"io/fs"
+
 	"context"
 	"crypto/tls"
 	"errors"
 	"log/slog"
+	"meshport/internal/console"
 	"net"
 	"net/http"
 	"os"
@@ -30,14 +33,15 @@ import (
 var Version = "1.0.0-dev"
 
 type Server struct {
-	cfg  *config.Config
-	db   *store.DB
-	bus  *events.Bus
-	logs *events.LogSink
-	log  *slog.Logger
-	hub  *hub.Hub
-	frp  *frp.Manager
-	mon  *monitor.Monitor
+	consoleFS fs.FS
+	cfg       *config.Config
+	db        *store.DB
+	bus       *events.Bus
+	logs      *events.LogSink
+	log       *slog.Logger
+	hub       *hub.Hub
+	frp       *frp.Manager
+	mon       *monitor.Monitor
 
 	mux         *http.ServeMux
 	routes      []Route
@@ -64,7 +68,7 @@ type Options struct {
 }
 
 func New(o Options) (*Server, error) {
-	s := &Server{cfg: o.Config, db: o.DB, bus: o.Bus, logs: o.Logs, log: o.Logger, mux: http.NewServeMux(), started: time.Now()}
+	s := &Server{cfg: o.Config, db: o.DB, bus: o.Bus, logs: o.Logs, log: o.Logger, mux: http.NewServeMux(), started: time.Now(), consoleFS: console.FS()}
 	if s.bus == nil {
 		s.bus = events.NewBus()
 	}

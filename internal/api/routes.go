@@ -1,10 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 )
@@ -193,27 +196,58 @@ func (s *Server) hEndpoints(c *Ctx) error {
 	return c.Items(out)
 }
 
-// hStatic serves the built console from web_dir with SPA fallback.
+// hStatic serves the web console: the build in web_dir when configured,
+// otherwise the console embedded in the binary. web_dir "off" disables it.
+// Unknown paths fall back to index.html (client-side routing).
 func (s *Server) hStatic(w http.ResponseWriter, r *http.Request) {
 	if s.acl.Denied(s.clientIP(r)) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/") {
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/internal/") {
 		writeErr(w, notFoundErr("endpoint"))
 		return
 	}
-	if s.cfg.WebDir == "" {
+	if s.cfg.WebDir == "off" {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"name":"meshportd","version":%q,"docs":"/api/docs","openapi":"/api/v1/openapi.json"}`+"\n", Version)
 		return
 	}
-	p := filepath.Join(s.cfg.WebDir, filepath.Clean("/"+r.URL.Path))
-	if st, err := os.Stat(p); err == nil && !st.IsDir() {
-		http.ServeFile(w, r, p)
+	var fsys fs.FS = s.consoleFS
+	if s.cfg.WebDir != "" {
+		fsys = os.DirFS(s.cfg.WebDir)
+	}
+	h := w.Header()
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Referrer-Policy", "same-origin")
+	h.Set("X-Frame-Options", "DENY")
+	if s.cfg.WebDir == "" {
+		// the embedded console uses no inline scripts or third-party resources
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	}
+	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if name == "" {
+		name = "index.html"
+	}
+	if st, err := fs.Stat(fsys, name); err != nil || st.IsDir() {
+		name = "index.html"
+	}
+	if name == "index.html" {
+		h.Set("Cache-Control", "no-cache")
+	}
+	f, err := fsys.Open(name)
+	if err != nil {
+		http.Error(w, "console not found", http.StatusNotFound)
 		return
 	}
-	http.ServeFile(w, r, filepath.Join(s.cfg.WebDir, "index.html"))
+	defer f.Close()
+	st, _ := f.Stat()
+	rs, ok := f.(io.ReadSeeker)
+	if !ok {
+		b, _ := io.ReadAll(f)
+		rs = bytes.NewReader(b)
+	}
+	http.ServeContent(w, r, name, st.ModTime(), rs)
 }
 
 // hPrometheus exposes the latest gauges in Prometheus text format.

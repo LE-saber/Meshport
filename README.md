@@ -8,6 +8,7 @@ Meshport 是私有通訊平台，包含：
 | 目錄 | 內容 |
 |---|---|
 | `cmd/meshportd`、`internal/{api,hub,store,frp,…}` | 伺服器端 |
+| `internal/console/web` | 網頁控制台（內嵌在 meshportd，開 `https://<伺服器>/` 即可使用） |
 | `internal/agent` | 用戶端核心，以及嵌入的 Web UI（`internal/agent/web`） |
 | `cmd/meshport` | 桌面端（Windows/Linux，無 CGO） |
 | `mobile/meshcore`、`android/` | Android：gomobile 綁定與 Kotlin App |
@@ -31,8 +32,6 @@ Meshport 是私有通訊平台，包含：
 - [用戶端（桌面、Android、建置發布）](docs/CLIENT.md)
 - [架構與選型](docs/ARCHITECTURE.md)
 - [部署](docs/DEPLOY.md)
-- [云端构建与发行](docs/RELEASE.md)
-- [服务器管理控制台](docs/CONSOLE.md)
 - [API](docs/API.md)
 - [openapi.json](docs/openapi.json)
 
@@ -43,7 +42,8 @@ make build
 ./bin/meshportd init -config ./dev/meshport.yaml -data-dir ./dev/data \
     -public-url http://127.0.0.1:8080 -listen 127.0.0.1:8080
 ./bin/meshportd serve -config ./dev/meshport.yaml
-# 用 init 印出的 admin 密碼登入；API 文件：http://127.0.0.1:8080/api/docs
+# 瀏覽器開 http://127.0.0.1:8080/ ，用 init 印出的 admin 密碼登入控制台
+# API 文件：http://127.0.0.1:8080/api/docs
 ```
 
 要啟用本機 frps，`init` 時加上 `-frps-public-addr 127.0.0.1 -frps-binary /path/to/frps`。可用 `make frp-bins` 從原始碼建置 frps 和 frpc。
@@ -80,8 +80,7 @@ git tag v1.1.0 && git push origin v1.1.0
 
 ## 目前狀態與下一步
 
-1. **控制台前端**：`web/console` 保留原設計 Demo 的八頁佈局，已接入真實 API、Cookie 登入和 `/admin/stream` 即時資料。`make console` 產生入口頁；服務端發行包包含控制台，安裝程式會設定 `web_dir`。詳見 [控制台說明](docs/CONSOLE.md)。
-2. **用戶端實機驗證**：以下都還沒在實機上測過，請在發布前實際試用：
+1. **用戶端實機驗證**：以下都還沒在實機上測過，請在發布前實際試用：
    - Windows 與 Linux 桌面的視窗、系統匣、通知。
    - Android App。
    - 跨 NAT 打洞與 TURN。

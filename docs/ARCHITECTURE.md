@@ -2,7 +2,7 @@
 
 ## 1. 現況與範圍
 
-- 後端的資料模型、欄位與動作依照原 Design Demo 整理。伺服器控制台的八頁設計已在 `web/console` 接入真實 API、Cookie 登入與 WebSocket；桌面和 Android 共用 `internal/agent/web`。前端設計沿用原有佈局。
+- 後端的資料模型、欄位與動作，是照 Claude Design 畫布上的介面 Demo（手機 6 頁、桌面 5 頁、伺服器控制台 8 頁）整理出來的。控制台已實作在 `internal/console/web` 並接上本 API（見 §7），用戶端見 [CLIENT.md](CLIENT.md)。
 - 這一階段完成的是**伺服器端**：
   - 統一身分、裝置、權限、API。
   - 訊息中繼、P2P 信令、TURN 憑證。
@@ -103,6 +103,15 @@
 - 線上更新：manifest 要用 Ed25519 簽章，並比對 SHA-256。安裝前會自動備份，裝完由 systemd 重啟。
 
 ## 7. 控制台 8 頁與 API 對照
+
+控制台在 `internal/console/web`：無框架、無外部相依的單頁應用，以 `go:embed` 編進 meshportd，在 `/` 提供（`web_dir` 可改用其他建置或設為 `off` 停用）。
+
+- 登入後以 HttpOnly、SameSite=Strict 的 session cookie 呼叫 `/api/v1`，所有寫入都帶 `X-Requested-With`。
+- 回應標頭有嚴格的 CSP（只允許同源腳本與樣式）、`X-Frame-Options: DENY`；伺服器回來的文字一律以 textContent 插入。
+- 即時資料走 `WS /admin/stream`：`metrics.tick` 直接更新數字與圖表，其他事件會觸發目前頁面重新載入。
+- 依角色顯示操作：檢視者唯讀，操作員可以操作裝置、映射、審批，管理員才看得到節點、使用者、ACL、系統設定等。
+- 要求 MFA 時，未啟用的使用者登入後會先進入設定流程。註冊連結 `/enroll#<註冊碼>` 是不需登入的說明頁。
+
 
 | 頁面 | 主要端點 |
 |---|---|

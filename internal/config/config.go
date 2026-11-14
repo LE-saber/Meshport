@@ -54,7 +54,7 @@ type Config struct {
 	InternalListen string   `yaml:"internal_listen"`
 	PublicURL      string   `yaml:"public_url"`
 	DataDir        string   `yaml:"data_dir"`
-	WebDir         string   `yaml:"web_dir"`
+	WebDir         string   `yaml:"web_dir"` // "" = embedded console, a path = custom build, "off" = no console
 	LogLevel       string   `yaml:"log_level"`
 	TrustedProxies []string `yaml:"trusted_proxies"`
 	TLS            TLS      `yaml:"tls"`

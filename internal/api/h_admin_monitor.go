@@ -157,6 +157,11 @@ func (s *Server) hAudit(c *Ctx) error {
 		where = append(where, "target_id=?")
 		args = append(args, t)
 	}
+	if q := c.Query("q"); q != "" {
+		where = append(where, `(actor LIKE ? ESCAPE '\' OR actor_id LIKE ? ESCAPE '\' OR target_id LIKE ? ESCAPE '\' OR target_type LIKE ? ESCAPE '\')`)
+		l := store.Like(q)
+		args = append(args, l, l, l, l)
+	}
 	args = append(args, c.QueryInt("limit", 200, 2000), c.QueryInt("offset", 0, 1_000_000))
 	rows, err := s.db.Query(`SELECT id, actor_type, actor_id, actor, action, target_type, target_id, detail, ip, created_at FROM audit_log WHERE `+strings.Join(where, " AND ")+` ORDER BY id DESC LIMIT ? OFFSET ?`, args...)
 	if err != nil {

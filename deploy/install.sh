@@ -46,11 +46,6 @@ id meshport &>/dev/null || useradd --system --home /var/lib/meshport --shell /us
 install -d -o meshport -g meshport -m 0750 /var/lib/meshport
 install -d -o meshport -g meshport -m 0750 /etc/meshport
 install -d -o meshport -g meshport -m 0755 /opt/meshport/bin /opt/meshport/docs
-install -d -o root -g root -m 0755 /opt/meshport/web
-if [[ -f "$HERE/web/index.html" ]]; then
-  cp -r "$HERE/web/." /opt/meshport/web/
-  chmod -R a+rX /opt/meshport/web
-fi
 install -o meshport -g meshport -m 0755 "$HERE/bin/meshportd" "$HERE/bin/meshctl" /opt/meshport/bin/
 cp -r "$HERE/docs/." /opt/meshport/docs/ 2>/dev/null || true
 ln -sf /opt/meshport/bin/meshportd /usr/local/bin/meshportd
@@ -85,9 +80,6 @@ if [[ ! -f /etc/meshport/meshport.yaml ]]; then
   [[ -n "$SUBHOST" ]] && args+=(-frps-subdomain-host "$SUBHOST")
   [[ $WITH_TURN -eq 1 ]] && args+=(-turn-host "$DOMAIN")
   INIT_OUT="$(runuser -u meshport -- /opt/meshport/bin/meshportd init "${args[@]}")"
-  if [[ -f /opt/meshport/web/index.html ]]; then
-    sed -i 's|^web_dir: ""$|web_dir: /opt/meshport/web|' /etc/meshport/meshport.yaml
-  fi
   echo "$INIT_OUT"
 else
   echo "/etc/meshport/meshport.yaml exists; keeping it"

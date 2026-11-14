@@ -11,7 +11,7 @@
 | 配置 | `/etc/meshport/meshport.yaml` |
 | 数据 | `/var/lib/meshport` |
 | 程序 | `/opt/meshport/bin` |
-| 服务入口页面 | `/opt/meshport/web/index.html` |
+| 服务入口页面 | 内嵌于 `meshportd`，`web_dir: ""` |
 
 不配置公开的 HTTP 反向代理，也不开放管理端口。服务器原有的 frps 继续使用 `7000`，与 Meshport 的 frps 分开运行。设备 API 与管理页面共用监听地址，因此客户端接入也需要 SSH 隧道或其他私有通道。
 
@@ -42,7 +42,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCo
 
 ## 页面与管理凭据
 
-服务器入口使用已接入真实 API 的管理控制台。先登录再管理设备、FRP、权限、安全和系统；`/api/docs` 保留完整 API 文档。页面布局、主题和语言选项沿用原设计 Demo，显示的记录与指标来自服务器。
+服务器入口使用内嵌的管理控制台。先登录再管理设备、FRP、权限、安全和系统；`/api/docs` 保留完整 API 文档。显示的记录与指标来自服务器。旧版若配置了 `web_dir: /opt/meshport/web`，升级时应备份配置并将 web_dir 置空，否则仍会显示旧页面。更新页面需要替换二进制并重启服务。
 
 管理员用户名为 `admin`。首次生成的密码仅保存在服务器 root 可读文件中，可以通过 SSH 读取：
 
