@@ -33,15 +33,16 @@ import (
 var Version = "1.0.0-dev"
 
 type Server struct {
-	consoleFS fs.FS
-	cfg       *config.Config
-	db        *store.DB
-	bus       *events.Bus
-	logs      *events.LogSink
-	log       *slog.Logger
-	hub       *hub.Hub
-	frp       *frp.Manager
-	mon       *monitor.Monitor
+	consoleFS    fs.FS
+	consoleETags sync.Map // file name -> ETag for the embedded console
+	cfg          *config.Config
+	db           *store.DB
+	bus          *events.Bus
+	logs         *events.LogSink
+	log          *slog.Logger
+	hub          *hub.Hub
+	frp          *frp.Manager
+	mon          *monitor.Monitor
 
 	mux         *http.ServeMux
 	routes      []Route

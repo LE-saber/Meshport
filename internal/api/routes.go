@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -232,9 +234,9 @@ func (s *Server) hStatic(w http.ResponseWriter, r *http.Request) {
 	if st, err := fs.Stat(fsys, name); err != nil || st.IsDir() {
 		name = "index.html"
 	}
-	if name == "index.html" {
-		h.Set("Cache-Control", "no-cache")
-	}
+	// Console files are small and change together on upgrade: always
+	// revalidate so a new template never meets a cached script.
+	h.Set("Cache-Control", "no-cache")
 	f, err := fsys.Open(name)
 	if err != nil {
 		http.Error(w, "console not found", http.StatusNotFound)
@@ -246,6 +248,17 @@ func (s *Server) hStatic(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		b, _ := io.ReadAll(f)
 		rs = bytes.NewReader(b)
+	}
+	if st.ModTime().IsZero() { // embedded files carry no mtime; validate by content
+		if tag, ok := s.consoleETags.Load(name); ok {
+			h.Set("ETag", tag.(string))
+		} else if b, err := io.ReadAll(rs); err == nil {
+			sum := sha256.Sum256(b)
+			tag := `"` + hex.EncodeToString(sum[:12]) + `"`
+			s.consoleETags.Store(name, tag)
+			h.Set("ETag", tag)
+			rs = bytes.NewReader(b)
+		}
 	}
 	http.ServeContent(w, r, name, st.ModTime(), rs)
 }

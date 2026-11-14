@@ -22,7 +22,7 @@ func TestConsoleStatic(t *testing.T) {
 	if hdr.Get("Cache-Control") != "no-cache" {
 		t.Fatalf("index should not be cached: %v", hdr)
 	}
-	for _, p := range []string{"/app.js", "/app.css", "/icon.svg"} {
+	for _, p := range []string{"/app.js", "/app.css", "/icon.svg", "/dc.js", "/theme.js", "/strings.js", "/admin.tpl.html"} {
 		if st, b, _ := e.raw("GET", p, "", nil, nil); st != 200 || len(b) < 100 {
 			t.Fatalf("%s: %d (%d bytes)", p, st, len(b))
 		}
@@ -55,5 +55,19 @@ func TestConsoleStatic(t *testing.T) {
 	e.srv.cfg.WebDir = "off"
 	if _, b, _ := e.raw("GET", "/", "", nil, nil); !strings.Contains(string(b), `"name":"meshportd"`) {
 		t.Fatalf("off: %s", b)
+	}
+}
+
+// Embedded console files revalidate by content so upgrades never mix a new
+// template with a cached script.
+func TestConsoleCaching(t *testing.T) {
+	e := newEnv(t)
+	st, _, hdr := e.raw("GET", "/app.js", "", nil, nil)
+	tag := hdr.Get("ETag")
+	if st != 200 || tag == "" || hdr.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("app.js: %d %v", st, hdr)
+	}
+	if st, _, _ := e.raw("GET", "/app.js", "", nil, map[string]string{"If-None-Match": tag}); st != 304 {
+		t.Fatalf("revalidation: %d", st)
 	}
 }

@@ -33,7 +33,7 @@ openapi:
 
 # release/meshport-server-<version>-linux-<arch>.tar.gz with bin/ deploy/ docs/
 console:
-	node --check internal/console/web/app.js
+	@for f in internal/console/web/*.js; do node --check "$$f" || exit 1; done
 	node --test tests/console_ui.test.cjs
 
 release: console

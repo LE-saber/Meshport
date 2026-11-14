@@ -1,0 +1,73 @@
+<template id="auth">
+<div lang="{{langTag}}" data-s="position: relative; width: 100%; min-height: 100vh; overflow: hidden; box-sizing: border-box; font-family: {{font}}; color: {{c.text}}; background: {{c.bg}}; -webkit-font-smoothing: antialiased; display: flex; align-items: center; justify-content: center; padding: 24px 16px">
+<div aria-hidden="true" data-s="position: absolute; width: 560px; height: 560px; top: -220px; right: -160px; border-radius: 50%; background: {{c.orbA}}; filter: blur(100px)"></div>
+<div aria-hidden="true" data-s="position: absolute; width: 480px; height: 480px; bottom: -200px; left: -120px; border-radius: 50%; background: {{c.orbC}}; filter: blur(110px)"></div>
+<div data-s="position: absolute; top: 18px; right: 18px; display: flex; gap: 8px">
+<button type="button" data-on-click="{{cycleLang}}" aria-label="{{s.language}}" data-s="display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid {{c.stroke}}; background: {{c.glass}}; color: {{c.text}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg><span>{{s.langShort}}</span></button>
+<button type="button" data-on-click="{{toggleTheme}}" aria-label="{{s.themeToggle}}" data-s="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: 1px solid {{c.stroke}}; background: {{c.glass}}; color: {{c.text}}; cursor: pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{themeIcon}}"></path></svg></button>
+</div>
+<div data-s="position: relative; width: 420px; max-width: 100%; box-sizing: border-box; padding: 28px; border-radius: 24px; background: {{c.sheet}}; border: 1px solid {{c.stroke}}; box-shadow: {{c.shadow}}; backdrop-filter: blur(30px) saturate(180%)">
+<div data-s="display: flex; align-items: center; gap: 10px">
+<div data-s="width: 40px; height: 40px; flex: none; border-radius: 12px; background: #0E7C66; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(14, 124, 102, 0.24)">
+<svg width="27" height="27" viewBox="0 0 24 24" fill="none" role="img" aria-label="Meshport logo"><path d="M5.5 19v-7.5a6.5 6.5 0 0 1 13 0V19" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"></path><circle cx="5.5" cy="19" r="2.1" fill="#FFFFFF"></circle><circle cx="18.5" cy="19" r="2.1" fill="#FFFFFF"></circle><circle cx="12" cy="13" r="2.4" fill="#FFC24B"></circle></svg>
+</div>
+<div>
+<div data-s="font-size: 19px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15">{{brand}}</div>
+<div data-s="font-size: 12.5px; font-weight: 600; color: {{c.muted}}">{{s.consoleName}}</div>
+</div>
+</div>
+<h1 data-s="margin: 22px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em">{{au.title}}</h1>
+<p data-s="margin: 6px 0 0; font-size: 13.5px; color: {{c.muted}}; line-height: 1.55">{{au.sub}}</p>
+
+<sc-if value="{{au.isLogin}}">
+<form data-on-submit="{{au.submit}}" novalidate data-s="display: flex; flex-direction: column; gap: 14px; margin-top: 20px">
+<label data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}">{{s.username}}<input type="text" autocomplete="username" value="{{au.user}}" data-on-change="{{au.setUser}}" data-s="width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font: inherit; font-size: 14.5px; font-weight: 400; outline: none"></label>
+<label data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}">{{s.password}}<input type="password" autocomplete="current-password" value="{{au.pw}}" data-on-change="{{au.setPw}}" data-s="width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font: inherit; font-size: 14.5px; font-weight: 400; outline: none"></label>
+<sc-if value="{{au.needTotp}}">
+<label data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}">{{s.totpCode}}<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" value="{{au.totp}}" data-on-change="{{au.setTotp}}" data-s="width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px; letter-spacing: 0.2em; outline: none"></label>
+</sc-if>
+<sc-if value="{{au.hasErr}}"><div role="alert" data-s="font-size: 13px; color: {{c.crit}}">{{au.err}}</div></sc-if>
+<button type="submit" aria-disabled="{{au.busy}}" data-s="display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border: 0; border-radius: 12px; background: {{c.accentBg}}; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 16px {{c.glow}}">{{au.btn}}</button>
+<div data-s="font-size: 12px; color: {{c.faint}}; line-height: 1.5">{{s.loginHint}}</div>
+</form>
+</sc-if>
+
+<sc-if value="{{au.isMfa}}">
+<div data-s="display: flex; flex-direction: column; gap: 14px; margin-top: 20px">
+<sc-if value="{{au.mfaWaiting}}">
+<button type="button" data-on-click="{{au.startMfa}}" data-s="display: flex; align-items: center; justify-content: center; height: 46px; border: 0; border-radius: 12px; background: {{c.accentBg}}; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 16px {{c.glow}}">{{s.mfaStart}}</button>
+</sc-if>
+<sc-if value="{{au.mfaStarted}}">
+<sc-for list="{{au.rows}}" as="r">
+<div data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}"><span>{{r.label}}</span>
+<div data-s="display: flex; gap: 8px"><div data-s="flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; background: {{c.tile}}; color: {{c.text}}; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; font-weight: 500; word-break: break-all">{{r.value}}</div>
+<button type="button" data-on-click="{{r.copy}}" aria-label="{{s.copy}} {{r.label}}" data-s="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; border-radius: 10px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.copy}}"></path></svg></button></div></div>
+</sc-for>
+<form data-on-submit="{{au.submit}}" novalidate data-s="display: flex; flex-direction: column; gap: 12px">
+<label data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}">{{s.totpCode}}<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" value="{{au.totp}}" data-on-change="{{au.setTotp}}" data-s="width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px; letter-spacing: 0.2em; outline: none"></label>
+<button type="submit" aria-disabled="{{au.busy}}" data-s="display: flex; align-items: center; justify-content: center; height: 46px; border: 0; border-radius: 12px; background: {{c.accentBg}}; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 16px {{c.glow}}">{{s.mfaEnable}}</button>
+</form>
+</sc-if>
+<sc-if value="{{au.hasErr}}"><div role="alert" data-s="font-size: 13px; color: {{c.crit}}">{{au.err}}</div></sc-if>
+<button type="button" data-on-click="{{logout}}" data-s="height: 40px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">{{s.logout}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{au.isEnroll}}">
+<div data-s="display: flex; flex-direction: column; gap: 14px; margin-top: 20px">
+<sc-for list="{{au.rows}}" as="r">
+<div data-s="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{c.muted}}"><span>{{r.label}}</span>
+<div data-s="display: flex; gap: 8px"><div data-s="flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; background: {{c.tile}}; color: {{c.text}}; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; font-weight: 500; word-break: break-all">{{r.value}}</div>
+<button type="button" data-on-click="{{r.copy}}" aria-label="{{s.copy}} {{r.label}}" data-s="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; border-radius: 10px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.copy}}"></path></svg></button></div></div>
+</sc-for>
+<sc-if value="{{au.hasErr}}"><div role="alert" data-s="font-size: 13px; color: {{c.crit}}">{{au.err}}</div></sc-if>
+<div data-s="padding: 12px 14px; border-radius: 14px; background: {{c.accentSoft}}; font-size: 12.5px; color: {{c.muted}}; line-height: 1.6">{{s.enrollHint}}</div>
+<a href="/" data-s="display: flex; align-items: center; justify-content: center; height: 42px; border-radius: 12px; border: 1px solid {{c.field}}; background: {{c.input}}; color: {{c.text}}; font-size: 14px; font-weight: 600; text-decoration: none">{{s.toConsole}}</a>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{hasToast}}">
+<div role="status" data-s="position: fixed; left: 50%; top: 20px; z-index: 50; transform: translateX(-50%); width: max-content; max-width: 420px; padding: 10px 18px; border-radius: 16px; background: {{c.toastBg}}; color: {{c.toastFg}}; font-size: 14px; font-weight: 500; text-align: center; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22)">{{toast}}</div>
+</sc-if>
+</div>
+</template>

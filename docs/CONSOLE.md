@@ -1,6 +1,6 @@
 # 服务器管理控制台
 
-控制台位于 `internal/console/web`，通过 Go embed 打包进 `meshportd`。原生 JavaScript 调用同源 `/api/v1`，使用 HttpOnly Cookie 登录，并通过 WebSocket 接收实时事件；运行时不需要 CDN 或额外的 Node 服务。
+控制台位于 `internal/console/web`，通过 Go embed 打包进 `meshportd`。本版使用新源码包恢复的原设计模板 `admin.tpl.html`、配色和繁中／日文／英文文案，由 `dc.js` 渲染；`app.js` 将真实 API 数据填入模板。使用同源 `/api/v1`、HttpOnly Cookie 和 WebSocket；运行时不需要 CDN 或额外的 Node 服务。
 
 ## 功能与授权
 
@@ -8,9 +8,9 @@
 
 控制台账号角色和设备等级相互独立。`operator` 或 `admin` 账号可以在“权限与审批 → 直接授予等级”为 active 设备授权。新设备若为 pending，应先在设备详情中核准。设备等级分为 guest、member、admin；member 可发布 FRP 服务，admin 级设备可替其他设备申请等级，最终由控制台操作员审批。
 
-没有 active 设备时，直接授予入口明确提示先注册并核准设备。授权通过后设备会收到 `level.changed`，后端立即重新计算其能力，撤销时恢复先前等级。
+没有 active 设备时，直接授予入口显示空状态提示。授权通过后设备会收到 `level.changed`，后端立即重新计算其能力，撤销时恢复先前等级。现有期限选项为 24 小时、7 天、30 天、90 天、永久。
 
-通信状态使用 `up/nego/idle/fail/closed`，路径使用 `p2p/relay/nego/fail/idle`。TURN 和服务器中继均属于 relay，可由每行的 via 说明区别；“包括已结束”可查看结束的会话。审计日志支持按操作者、操作者 ID、目标 ID 和目标类型搜索。数据库完整性检查展示接口返回的 integrity 结果。
+通信状态使用 `up/nego/idle/fail/closed`，路径使用 `p2p/relay/nego/fail/idle`。TURN 和服务器中继均属于 relay，可由每行的 via 说明区别。本版以通信模式筛选并显示后端实际状态。安全中心支持审计 CSV 导出；保留的审计接口还支持 q 搜索，数据库接口支持 `?check=1` 完整性检查。恢复的模板没有单独的审计搜索页和完整性检查按钮。
 
 ## 构建与验证
 
@@ -20,7 +20,7 @@ go test ./internal/api
 make release VERSION=1.0.0
 ```
 
-`make console` 检查内嵌脚本语法并运行前端回归测试。Go API 测试覆盖静态页面、安全头、审计搜索、通信筛选、授权通知及设备能力变化；真实 FRP 端到端测试需配置 `MESHPORT_FRPS` 和 `MESHPORT_FRPC`。
+`make console` 检查所有内嵌脚本语法并运行前端回归测试。Go API 测试覆盖静态页面、缓存重新验证、安全头、审计搜索、通信筛选、授权通知及设备能力变化；真实 FRP 端到端测试需配置 `MESHPORT_FRPS` 和 `MESHPORT_FRPC`。更新后的模板和脚本使用内容 ETag 与 no-cache，避免升级后混用旧缓存。
 
 ## 部署与升级
 

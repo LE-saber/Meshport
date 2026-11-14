@@ -1,1726 +1,1627 @@
-/* Meshport web console — talks to meshportd's /api/v1 (cookie session).
- * Dependency-free. Anything that comes from the server is inserted with
- * textContent (via h()), never innerHTML. */
-'use strict';
+/* Meshport console – application logic.
+ *
+ * Feeds the approved console design (admin.tpl.html, rendered by dc.js) with
+ * live data from the meshportd admin API (/api/v1/admin/*) and the console
+ * event stream (/api/v1/admin/stream). The structure of adminVals() follows
+ * the design's own view model so every card, table and dialog keeps its look.
+ */
+(function () {
+  'use strict';
 
-// ======================================================================
-// DOM helpers
-// ======================================================================
-function h(tag, attrs, ...kids) {
-  const el = document.createElement(tag);
-  if (attrs) {
-    for (const [k, v] of Object.entries(attrs)) {
-      if (v === undefined || v === null || v === false) continue;
-      if (k === 'class') el.className = v;
-      else if (k === 'style') el.style.cssText = v;
-      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
-      else if (k === 'value') el.value = v;
-      else if (k === 'checked') el.checked = !!v;
-      else if (k === 'disabled') el.disabled = !!v;
-      else el.setAttribute(k, v === true ? '' : v);
-    }
-  }
-  for (const k of kids.flat(Infinity)) {
-    if (k === null || k === undefined || k === false) continue;
-    el.append(k instanceof Node ? k : document.createTextNode(String(k)));
-  }
-  return el;
-}
-const $ = (s, r = document) => r.querySelector(s);
-const SVGNS = 'http://www.w3.org/2000/svg';
-function s(tag, attrs, ...kids) {
-  const el = document.createElementNS(SVGNS, tag);
-  for (const [k, v] of Object.entries(attrs || {})) if (v !== undefined && v !== null) el.setAttribute(k, v);
-  for (const k of kids.flat()) if (k) el.append(k instanceof Node ? k : document.createTextNode(String(k)));
-  return el;
-}
-const ICON = {
-  overview: 'M4 13h6V4H4zM14 20h6V11h-6zM4 20h6v-3H4zM14 7h6V4h-6z',
-  devices: 'M4 5h16v10H4zM2 19h20M9 15v4M15 15v4',
-  comms: 'M4 5h16v11H8l-4 4z',
-  frp: 'M4 7h10M10 3l4 4-4 4M20 17H10M14 13l-4 4 4 4',
-  access: 'M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z M9 12l2 2 4-4',
-  security: 'M6 10V8a6 6 0 0 1 12 0v2M5 10h14v11H5zM12 14v3',
-  monitor: 'M3 12h4l3-7 4 14 3-7h4',
-  system: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
-  menu: 'M4 6h16M4 12h16M4 18h16',
-  x: 'M6 6l12 12M18 6L6 18',
-  plus: 'M12 5v14M5 12h14',
-  refresh: 'M20 11a8 8 0 1 0-2 6M20 5v6h-6',
-  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
-  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
-  logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
-  sun: 'M12 4V2M12 22v-2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
-  book: 'M4 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z',
-};
-function icon(name) {
-  const svg = s('svg', { viewBox: '0 0 24 24', class: 'i', 'aria-hidden': 'true' });
-  svg.append(s('path', { d: ICON[name] || '' }));
-  return svg;
-}
-
-// ======================================================================
-// formatting
-// ======================================================================
-const pad = (n) => String(n).padStart(2, '0');
-function toDate(v) {
-  if (!v) return null;
-  const d = typeof v === 'number' ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v);
-  return isNaN(d) || d.getFullYear() < 2000 ? null : d;
-}
-function fmtDate(v) {
-  const d = toDate(v);
-  if (!d) return '—';
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function fmtAgo(v) {
-  const d = toDate(v);
-  if (!d) return '—';
-  const sec = Math.round((Date.now() - d.getTime()) / 1000);
-  if (sec < -60) return fmtDate(v);
-  if (sec < 45) return '剛剛';
-  if (sec < 3600) return Math.round(sec / 60) + ' 分鐘前';
-  if (sec < 86400) return Math.round(sec / 3600) + ' 小時前';
-  if (sec < 86400 * 30) return Math.round(sec / 86400) + ' 天前';
-  return fmtDate(v);
-}
-function fmtIn(v) {
-  const d = toDate(v);
-  if (!d) return '永久';
-  const sec = Math.round((d.getTime() - Date.now()) / 1000);
-  if (sec <= 0) return '已到期';
-  if (sec < 3600) return Math.ceil(sec / 60) + ' 分鐘後到期';
-  if (sec < 86400) return Math.round(sec / 3600) + ' 小時後到期';
-  return Math.round(sec / 86400) + ' 天後到期';
-}
-function fmtBytes(n) {
-  if (n === null || n === undefined || isNaN(n)) return '—';
-  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  n = Number(n);
-  while (Math.abs(n) >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-  return (i === 0 ? Math.round(n) : n.toFixed(n < 10 ? 1 : 0)) + ' ' + u[i];
-}
-const fmtRate = (n) => fmtBytes(n) + '/s';
-const fmtPct = (n) => (n === null || n === undefined || isNaN(n)) ? '—' : (Math.round(n * 10) / 10) + '%';
-function fmtDur(sec) {
-  sec = Math.floor(sec || 0);
-  const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
-  if (d) return `${d} 天 ${hh} 小時`;
-  if (hh) return `${hh} 小時 ${m} 分`;
-  return `${m} 分 ${sec % 60} 秒`;
-}
-const fmtNum = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('zh-TW');
-
-// labels
-const L = {
-  status: { active: '啟用', pending: '待審批', disabled: '已停用', banned: '已封鎖' },
-  level: { admin: '管理級', member: '成員級', guest: '訪客級' },
-  role: { admin: '管理員', operator: '操作員', viewer: '檢視者', user: '一般使用者' },
-  mode: { p2p: '僅 P2P', relay: '僅中繼', auto: 'P2P 優先' },
-  path: { p2p: 'P2P 直連', relay: '中繼', nego: '協商中', fail: '失敗', idle: '閒置', '': '—' },
-  sstate: { up: '已連線', nego: '協商中', idle: '閒置', fail: '失敗', closed: '已結束' },
-  mstatus: { online: '在線', offline: '離線', pending: '等待連線', error: '錯誤', stopped: '已停止' },
-  nstatus: { online: '在線', offline: '離線', unknown: '未知', crashed: '當機', stopped: '已停止', starting: '啟動中', running: '執行中' },
-  gstatus: { pending: '待審批', approved: '已核准', rejected: '已駁回', revoked: '已撤銷', expired: '已到期' },
-  sev: { info: '資訊', warn: '警告', crit: '嚴重' },
-  astatus: { open: '未處理', acked: '已確認', resolved: '已解決' },
-  kind: { laptop: '筆電', desktop: '桌機', phone: '手機', tablet: '平板', server: '伺服器', other: '其他' },
-  fkind: { p2p: 'P2P', relay: '中繼', frp: 'FRP', auth: '驗證' },
-  cap: { message: '傳訊', file: '傳檔', frpc: '發布服務（frpc）', 'frps.manage': '管理 FRP 伺服器', 'grant.request': '替其他裝置申請等級', 'discover.all': '探索所有裝置' },
-  duration: { '24h': '24 小時', '7d': '7 天', '30d': '30 天', '90d': '90 天', perm: '永久' },
-  cmd: { ping: '連線測試（ping）', 'refresh-peers': '重新整理裝置清單', 'reload-frpc': '重新載入 frpc', 'rotate-key': '輪替金鑰', 'collect-logs': '收集日誌', disconnect: '中斷所有連線', 'restart-client': '重新啟動用戶端' },
-};
-const lab = (map, v) => (L[map] && L[map][v]) || v || '—';
-function pill(text, tone) { return h('span', { class: 'pill' + (tone ? ' ' + tone : '') }, text); }
-const levelPill = (lv) => pill(lab('level', lv), { admin: 'violet', member: 'info', guest: '' }[lv]);
-const rolePill = (r) => pill(lab('role', r), { admin: 'violet', operator: 'info', viewer: '', user: '' }[r]);
-function deviceStatePill(d) {
-  if (d.status === 'banned') return pill('已封鎖', 'bad');
-  if (d.status === 'disabled') return pill('已停用', 'warn');
-  if (d.status === 'pending') return pill('待審批', 'warn');
-  return d.online ? pill('在線', 'ok') : pill('離線');
-}
-const mapPill = (st) => pill(lab('mstatus', st), { online: 'ok', error: 'bad', pending: 'warn', offline: '', stopped: '' }[st]);
-const nodePill = (st) => pill(lab('nstatus', st), { online: 'ok', running: 'ok', offline: 'bad', crashed: 'bad', unknown: '' }[st]);
-const grantPill = (st) => pill(lab('gstatus', st), { pending: 'warn', approved: 'ok', rejected: 'bad', revoked: '', expired: '' }[st]);
-const sevPill = (sv) => pill(lab('sev', sv), { info: 'info', warn: 'warn', crit: 'bad' }[sv]);
-
-// ======================================================================
-// API
-// ======================================================================
-const ERR = {
-  invalid_credentials: '帳號或密碼錯誤',
-  invalid_mfa: '驗證碼錯誤',
-  mfa_required: '請輸入驗證器 App 上的 6 位數驗證碼',
-  too_many_attempts: '嘗試次數過多，請稍後再試',
-  unauthorized: '登入已失效，請重新登入',
-  timeout: '裝置沒有在時限內回應',
-  offline: '裝置目前離線',
-};
-class APIError extends Error {
-  constructor(status, code, message) { super(message); this.status = status; this.code = code; }
-}
-async function api(method, path, body, opts = {}) {
-  const o = { method, credentials: 'same-origin', headers: { 'X-Requested-With': 'meshport-console', Accept: 'application/json' } };
-  if (body !== undefined && body !== null) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
-  let r;
-  try { r = await fetch('/api/v1' + path, o); } catch (e) { throw new APIError(0, 'network', '無法連線到伺服器'); }
-  let data = null;
-  const ct = r.headers.get('Content-Type') || '';
-  if (ct.includes('json')) { try { data = await r.json(); } catch (_) { /* empty */ } }
-  else if (opts.text) { data = await r.text(); }
-  if (!r.ok) {
-    const e = (data && data.error) || {};
-    const err = new APIError(r.status, e.code || 'http', ERR[e.code] || e.message || ('HTTP ' + r.status));
-    if (r.status === 401 && !opts.noAuthRedirect) { S.me = null; showLogin(); }
-    if (r.status === 403 && e.code === 'mfa_required' && !opts.noAuthRedirect) { showMFARequired(); }
-    throw err;
-  }
-  return data;
-}
-const GET = (p, o) => api('GET', p, null, o);
-const POST = (p, b) => api('POST', p, b === undefined ? {} : b);
-const PATCH = (p, b) => api('PATCH', p, b);
-const PUT = (p, b) => api('PUT', p, b);
-const DEL = (p) => api('DELETE', p);
-function qs(o) {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(o || {})) if (v !== '' && v !== undefined && v !== null && v !== false) p.set(k, v === true ? '1' : v);
-  const s = p.toString();
-  return s ? '?' + s : '';
-}
-
-function toast(msg, bad) {
-  const t = h('div', { class: 'toast' + (bad ? ' bad' : '') }, msg);
-  $('#toasts').append(t);
-  setTimeout(() => t.remove(), bad ? 6000 : 3200);
-}
-async function act(fn, okMsg) {
-  try { const r = await fn(); if (okMsg) toast(okMsg); S.reload && S.reload(); return r; }
-  catch (e) { if (e.status !== 401) toast(e.message, true); return undefined; }
-}
-function copy(text) {
-  const done = () => toast('已複製');
-  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text));
-  else fallbackCopy(text);
-  function fallbackCopy(t) {
-    const ta = h('textarea', { style: 'position:fixed;opacity:0' }); ta.value = t; document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (_) { toast('請手動複製', true); }
-    ta.remove();
-  }
-}
-
-// ======================================================================
-// state, roles
-// ======================================================================
-const S = {
-  me: null, role: 'user', settings: {},
-  page: 'overview', tab: '', f: {},          // filters per page/tab
-  reload: null, live: {}, ring: {}, ws: null, wsOn: false, wsRetry: 0,
-  badges: { devices: 0, access: 0, security: 0 }, liveHooks: [], drawer: null,
-};
-const RANK = { user: 0, viewer: 1, operator: 2, admin: 3 };
-const can = (r) => (RANK[S.role] || 0) >= RANK[r];
-const filt = (key, def) => (S.f[key] = S.f[key] || Object.assign({}, def));
-
-function applyTheme() {
-  const st = S.settings || {};
-  let theme = st.theme || 'system';
-  try { theme = localStorage.getItem('mp.theme') || theme; } catch (_) { /* ignore */ }
-  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-  else delete document.documentElement.dataset.theme;
-  document.documentElement.dataset.accent = st.accent || 'jade';
-  document.title = (st.console_name || 'Meshport') + ' 控制台';
-  const b = document.querySelector('.nav .brand span');
-  if (b) b.textContent = st.console_name || 'Meshport';
-}
-
-// ======================================================================
-// components
-// ======================================================================
-function card(title, body, extra, opts = {}) {
-  return h('section', { class: 'card' },
-    title ? h('header', null, h('h3', null, title), extra ? h('div', { class: 'row right' }, extra) : null) : null,
-    h('div', { class: 'body' + (opts.flush ? ' flush' : '') }, body));
-}
-function statCard(k, v, sub, liveKey, fmt) {
-  const vEl = h('div', { class: 'v' }, v);
-  if (liveKey) S.liveHooks.push((live) => { if (live[liveKey] !== undefined) vEl.textContent = fmt(live[liveKey], live); });
-  return h('div', { class: 'card stat' }, h('div', { class: 'k' }, k), vEl, sub ? h('div', { class: 's' }, sub) : null);
-}
-function empty(msg) { return h('div', { class: 'empty' }, msg || '沒有資料'); }
-function table(cols, rows, opts = {}) {
-  if (!rows || rows.length === 0) return empty(opts.empty);
-  const visible = cols.filter((c) => !c.hide);
-  return h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
-    h('thead', null, h('tr', null, visible.map((c) => h('th', { class: c.cls }, c.t)))),
-    h('tbody', null, rows.map((r) => h('tr', { class: opts.onRow ? 'click' : null, onclick: opts.onRow ? (e) => { if (!e.target.closest('button,a,input,select,label')) opts.onRow(r); } : null },
-      visible.map((c) => h('td', { class: c.cls }, c.f(r))))))));
-}
-function nameCell(main, sub) { return h('div', null, h('div', null, main), sub ? h('div', { class: 'sub mono' }, sub) : null); }
-function btn(label, onclick, cls = '', attrs = {}) { return h('button', Object.assign({ class: 'btn sm ' + cls, onclick }, attrs), label); }
-function seg(options, value, onchange) {
-  return h('div', { class: 'seg' }, options.map(([v, t]) => h('button', { class: v === value ? 'on' : '', onclick: () => onchange(v) }, t)));
-}
-function selectEl(options, value, onchange, cls = 'input sm') {
-  const el = h('select', { class: cls, onchange: () => onchange(el.value) }, options.map(([v, t]) => h('option', { value: v }, t)));
-  el.value = value || '';
-  return el;
-}
-function searchBox(value, placeholder, onchange) {
-  let t;
-  const el = h('input', { class: 'input sm', type: 'search', placeholder: placeholder || '搜尋', value: value || '',
-    oninput: () => { clearTimeout(t); t = setTimeout(() => onchange(el.value.trim()), 350); } });
-  return el;
-}
-function sw(checked, onchange, disabled) {
-  const inp = h('input', { type: 'checkbox', checked, disabled, onchange: () => onchange(inp.checked, inp) });
-  return h('label', { class: 'switch' }, inp, h('span'));
-}
-function secretBox(value) {
-  return h('div', { class: 'secret' }, h('code', null, value), h('button', { class: 'icon-btn', title: '複製', onclick: () => copy(value) }, icon('copy')));
-}
-function meter(label, pct, text) {
-  const tone = pct >= 90 ? ' bad' : pct >= 75 ? ' warn' : '';
-  return h('div', { class: 'meter' }, h('span', { class: 'muted' }, label),
-    h('div', { class: 'bar' + tone }, h('i', { style: `width:${Math.max(0, Math.min(100, pct || 0))}%` })), h('span', { class: 'mono' }, text));
-}
-
-// ---------- line chart ----------
-const PALETTE = ['var(--accent)', 'var(--info)', 'var(--violet)', 'var(--warn)', 'var(--bad)'];
-function lineChart(series, opts = {}) {
-  // series: [{name, points:[{t,v}], color}]
-  const W = 600, H = 150, P = { l: 46, r: 8, t: 8, b: 20 };
-  const svg = s('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' });
-  const all = series.flatMap((x) => x.points || []);
-  if (all.length < 2) {
-    svg.append(s('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle' }, '資料累積中…'));
-    return h('div', null, svg);
-  }
-  const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
-  let vmax = Math.max(...all.map((p) => p.v), opts.min || 0);
-  if (opts.max) vmax = Math.max(vmax, opts.max);
-  if (vmax <= 0) vmax = 1;
-  vmax *= 1.1;
-  const X = (t) => P.l + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (W - P.l - P.r);
-  const Y = (v) => H - P.b - (v / vmax) * (H - P.t - P.b);
-  const fmt = opts.fmt || ((v) => String(Math.round(v)));
-  for (let i = 0; i <= 3; i++) {
-    const v = vmax * i / 3, y = Y(v);
-    svg.append(s('line', { class: 'grid', x1: P.l, x2: W - P.r, y1: y, y2: y }));
-    svg.append(s('text', { x: P.l - 6, y: y + 3, 'text-anchor': 'end' }, fmt(v)));
-  }
-  const tl = (t) => { const d = new Date(t * 1000); return (t1 - t0 > 2 * 86400) ? `${d.getMonth() + 1}/${d.getDate()}` : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  svg.append(s('text', { x: P.l, y: H - 5 }, tl(t0)));
-  svg.append(s('text', { x: W - P.r, y: H - 5, 'text-anchor': 'end' }, tl(t1)));
-  series.forEach((sr, i) => {
-    const pts = (sr.points || []).slice().sort((a, b) => a.t - b.t);
-    if (!pts.length) return;
-    const color = sr.color || PALETTE[i % PALETTE.length];
-    const d = pts.map((p, j) => (j ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
-    if (series.length === 1) svg.append(s('path', { class: 'ar', d: d + ` L${X(pts[pts.length - 1].t)} ${H - P.b} L${X(pts[0].t)} ${H - P.b} Z`, fill: color }));
-    svg.append(s('path', { class: 'ln', d, stroke: color }));
+  const T = window.MP_THEME;
+  const I = Object.assign(T.icons(), {
+    logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
+    terminal: 'M4 17l6-6-6-6 M12 19h8',
   });
-  const legend = series.length > 1 || opts.legend ? h('div', { class: 'legend' }, series.map((sr, i) => {
-    const last = (sr.points || []).slice(-1)[0];
-    const sw = h('i'); sw.style.background = sr.color || PALETTE[i % PALETTE.length];
-    return h('span', null, sw, sr.name, last ? ' ' + fmt(last.v) : '');
-  })) : null;
-  return h('div', null, svg, legend);
-}
-
-// ---------- dialogs ----------
-function overlay(content, onClose) {
-  const ov = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === ov) close(); } }, content);
-  function close() { ov.remove(); document.removeEventListener('keydown', esc); onClose && onClose(); }
-  function esc(e) { if (e.key === 'Escape') close(); }
-  document.addEventListener('keydown', esc);
-  document.body.append(ov);
-  return close;
-}
-function confirmBox(title, message, opts = {}) {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (v) => { if (!done) { done = true; resolve(v); } close(); };
-    const d = h('div', { class: 'dialog' },
-      h('header', null, h('h3', null, title)),
-      h('div', { class: 'body' }, typeof message === 'string' ? h('div', null, message) : message),
-      h('footer', null, h('button', { class: 'btn', onclick: () => finish(false) }, '取消'),
-        h('button', { class: 'btn ' + (opts.danger ? 'danger solid' : 'primary'), onclick: () => finish(true) }, opts.label || '確定')));
-    const close = overlay(d, () => { if (!done) { done = true; resolve(false); } });
-  });
-}
-function infoBox(title, body, opts = {}) {
-  const d = h('div', { class: 'dialog' + (opts.wide ? ' wide' : '') },
-    h('header', null, h('h3', null, title), h('button', { class: 'icon-btn right', onclick: () => close() }, icon('x'))),
-    h('div', { class: 'body' }, body),
-    h('footer', null, h('button', { class: 'btn primary', onclick: () => close() }, opts.label || '完成')));
-  const close = overlay(d, opts.onClose);
-  return close;
-}
-function showSecret(title, items, note) {
-  infoBox(title, [
-    h('div', { class: 'notice' }, note || '這個值只會顯示這一次，請現在複製並妥善保存。'),
-    items.map(([label, value]) => h('label', { class: 'field' }, h('span', null, label), secretBox(value))),
-  ], { label: '我已保存' });
-}
-/* formDialog(title, fields, submit) — fields: [{k,label,type,value,options,hint,required,placeholder,min,max,show:(v)=>bool}]
- * types: text number password select check textarea multi(checkbox list) info */
-function formDialog(title, fields, submit, opts = {}) {
-  const inputs = {};
-  const rows = {};
-  const errEl = h('div', { class: 'err small' });
-  const values = () => {
-    const v = {};
-    for (const f of fields) {
-      if (!f.k) continue;
-      const el = inputs[f.k];
-      if (f.type === 'check') v[f.k] = el.checked;
-      else if (f.type === 'number') v[f.k] = el.value === '' ? null : Number(el.value);
-      else if (f.type === 'multi') v[f.k] = [...el.querySelectorAll('input:checked')].map((x) => x.value);
-      else v[f.k] = el.value;
-    }
-    return v;
+  const DICT = T.dict();
+  Object.keys(DICT).forEach((k) => Object.assign(DICT[k], (window.MP_EXTRA || {})[k] || {}));
+  const LANG_IN = { 'zh-TW': 'zh', zh: 'zh', 'zh-Hant': 'zh', ja: 'ja', 'ja-JP': 'ja', en: 'en', 'en-US': 'en' };
+  const LANG_OUT = { zh: 'zh-TW', ja: 'ja', en: 'en' };
+  const FONTS = {
+    zh: 'Inter, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif',
+    ja: 'Inter, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif',
+    en: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
   };
-  const refreshVis = () => { const v = values(); for (const f of fields) if (f.show && rows[f.k || f.label]) rows[f.k || f.label].hidden = !f.show(v); };
-  const body = fields.map((f) => {
-    let el, row;
-    if (f.type === 'info') { row = h('div', { class: f.tone === 'warn' ? 'notice' : 'notice info' }, f.label); rows[f.label] = row; return row; }
-    if (f.type === 'select') {
-      el = h('select', { class: 'input', onchange: refreshVis }, f.options.map(([v, t]) => h('option', { value: v }, t)));
-      el.value = f.value === undefined || f.value === null ? (f.options.length ? f.options[0][0] : '') : f.value;
-    } else if (f.type === 'check') {
-      el = h('input', { type: 'checkbox', checked: !!f.value, onchange: refreshVis });
-      row = h('label', { class: 'check' }, el, h('span', null, f.label), f.hint ? h('span', { class: 'hint' }, '— ' + f.hint) : null);
-    } else if (f.type === 'textarea') {
-      el = h('textarea', { class: 'input', placeholder: f.placeholder || '' }); el.value = f.value || '';
-    } else if (f.type === 'multi') {
-      const sel = new Set(f.value || []);
-      el = h('div', { class: 'row' }, f.options.map(([v, t]) => h('label', { class: 'check small' }, h('input', { type: 'checkbox', value: v, checked: sel.has(v) }), t)));
-    } else {
-      el = h('input', { class: 'input', type: f.type || 'text', placeholder: f.placeholder || '', min: f.min, max: f.max, autocomplete: f.type === 'password' ? 'new-password' : 'off', oninput: refreshVis });
-      el.value = f.value === undefined || f.value === null ? '' : f.value;
-    }
-    inputs[f.k] = el;
-    row = row || h('label', { class: 'field' }, h('span', null, f.label + (f.required ? ' *' : '')), el, f.hint ? h('span', { class: 'hint' }, f.hint) : null);
-    rows[f.k] = row;
-    return row;
-  });
-  const okBtn = h('button', { class: 'btn ' + (opts.danger ? 'danger solid' : 'primary'), type: 'submit' }, opts.submitLabel || '儲存');
-  const form = h('form', { class: 'dialog' + (opts.wide ? ' wide' : ''), onsubmit: async (e) => {
-    e.preventDefault();
-    errEl.textContent = '';
-    const v = values();
-    for (const f of fields) {
-      if (f.required && (!f.show || f.show(v)) && (v[f.k] === '' || v[f.k] === null)) { errEl.textContent = `請填寫「${f.label}」`; return; }
-    }
-    okBtn.disabled = true;
+  const LANG_TAGS = { zh: 'zh-Hant-TW', ja: 'ja', en: 'en' };
+  const PAGES = ['overview', 'devices', 'comms', 'frp', 'access', 'security', 'monitor', 'system'];
+  const RANK = { viewer: 1, operator: 2, admin: 3 };
+
+  function pref(k, v) {
     try {
-      const r = await submit(v);
-      if (r !== false) { close(); S.reload && S.reload(); }
-    } catch (err) { errEl.textContent = err.message; }
-    okBtn.disabled = false;
-  } },
-  h('header', null, h('h3', null, title), h('button', { class: 'icon-btn right', type: 'button', onclick: () => close() }, icon('x'))),
-  h('div', { class: 'body' }, opts.intro || null, body, errEl),
-  h('footer', null, h('button', { class: 'btn', type: 'button', onclick: () => close() }, '取消'), okBtn));
-  const close = overlay(form);
-  refreshVis();
-  const first = form.querySelector('input:not([type=checkbox]),select,textarea');
-  if (first) setTimeout(() => first.focus(), 30);
-}
-function openDrawer(title, build) {
-  closeDrawer();
-  const body = h('div', { class: 'body' }, h('div', { class: 'spinner' }));
-  const titleEl = h('h3', null, title);
-  const dr = h('aside', { class: 'drawer' }, h('header', null, titleEl, h('button', { class: 'icon-btn right', onclick: closeDrawer }, icon('x'))), body);
-  document.body.append(dr);
-  const ctx = {
-    el: body, setTitle: (t) => { titleEl.textContent = t; },
-    reload: async () => {
-      try { const nodes = await build(ctx); body.replaceChildren(...[].concat(nodes)); }
-      catch (e) { body.replaceChildren(h('div', { class: 'err' }, e.message)); }
-    },
-  };
-  S.drawer = { el: dr, ctx, esc: (e) => { if (e.key === 'Escape' && !$('.overlay')) closeDrawer(); } };
-  document.addEventListener('keydown', S.drawer.esc);
-  ctx.reload();
-  return ctx;
-}
-function closeDrawer() {
-  if (!S.drawer) return;
-  document.removeEventListener('keydown', S.drawer.esc);
-  S.drawer.el.remove();
-  S.drawer = null;
-}
+      if (v === undefined) return localStorage.getItem(k);
+      if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v);
+    } catch (_) { /* storage unavailable */ }
+    return null;
+  }
 
-// ======================================================================
-// authentication screens
-// ======================================================================
-function authShell(...kids) {
-  closeDrawer();
-  const name = (S.settings && S.settings.console_name) || 'Meshport';
-  $('#app').replaceChildren(h('div', { class: 'auth' }, h('div', { class: 'card' },
-    h('div', { class: 'brand' }, h('img', { src: '/icon.svg', alt: '' }), name + ' 控制台'), ...kids)));
-}
-function showLogin(msg) {
-  stopStream();
-  let needTOTP = false;
-  const user = h('input', { class: 'input', autocomplete: 'username', required: true });
-  const pw = h('input', { class: 'input', type: 'password', autocomplete: 'current-password', required: true });
-  const totp = h('input', { class: 'input', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 8, placeholder: '6 位數驗證碼' });
-  const totpRow = h('label', { class: 'field', hidden: true }, h('span', null, '驗證碼'), totp);
-  const err = h('div', { class: 'err small' }, msg || '');
-  const ok = h('button', { class: 'btn primary', type: 'submit' }, '登入');
-  authShell(h('h2', null, '登入'),
-    h('form', { class: 'grid', style: 'display:grid;gap:12px', onsubmit: async (e) => {
-      e.preventDefault();
-      err.textContent = ''; ok.disabled = true;
-      try {
-        const r = await api('POST', '/auth/login', { username: user.value.trim(), password: pw.value, totp: needTOTP ? totp.value.trim() : '' }, { noAuthRedirect: true });
-        pw.value = '';
-        await boot(r && r.mfa_setup_required);
-      } catch (e2) {
-        if (e2.code === 'mfa_required') { needTOTP = true; totpRow.hidden = false; totp.focus(); err.textContent = ''; }
-        else err.textContent = e2.message;
+  // ---------------------------------------------------------------- state
+  const ST = {
+    view: 'boot', authMode: 'login', page: 'overview', overlay: null,
+    lang: null, theme: null,
+    q: '', devFilter: 'all', commFilter: 'all', frpFilter: 'all', accFilter: 'pending', loginFilter: 'all',
+    aclMode: 'allow', aclDraft: '', range: '24h', logLv: 'all', paused: false, hov: null,
+    toast: '', cf: null, fm: null, mf: null, drawerId: null, busy: {}, pageErr: '',
+    au: { user: '', pw: '', totp: '', needTotp: false, err: '', busy: false, mfa: null },
+  };
+  const D = { me: null, settings: {}, dev: {} };
+  const LIVE = { ring: { p2p_bps: [], relay_bps: [] }, last: null, wsOn: false, ws: null, retry: 0, statusAt: 0 };
+  let logs = [];
+  let R = null;
+  let raf = 0;
+
+  const S = () => DICT[ST.lang] || DICT.zh;
+  const F = (str, o) => String(str).replace(/\{(\w+)\}/g, (m, k) => (o[k] !== undefined ? o[k] : m));
+  const role = () => (D.me && D.me.role) || 'viewer';
+  const can = (r) => (RANK[role()] || 0) >= RANK[r];
+  const isAdmin = () => can('admin');
+  const dark = () => (ST.theme === 'dark' ? true : ST.theme === 'light' ? false : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
+  const accentKey = () => (T.accents()[D.settings.accent] ? D.settings.accent : 'jade');
+
+  function render() {
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; draw(); });
+  }
+  function set(o) { Object.assign(ST, o); render(); }
+  function draw() {
+    if (!R) return;
+    const c = T.pal(dark(), accentKey());
+    document.body.style.background = c.bg;
+    document.documentElement.style.colorScheme = dark() ? 'dark' : 'light';
+    document.documentElement.lang = LANG_TAGS[ST.lang] || 'zh-Hant-TW';
+    if (ST.view === 'admin') R.render('admin', adminVals(c));
+    else if (ST.view === 'auth') R.render('auth', authVals(c));
+  }
+  let toastT = 0;
+  function flash(msg) {
+    clearTimeout(toastT);
+    set({ toast: msg });
+    toastT = setTimeout(() => set({ toast: '' }), 2600);
+  }
+
+  // ---------------------------------------------------------------- API
+  async function api(method, path, body, o) {
+    o = o || {};
+    const opt = { method, credentials: 'same-origin', headers: { 'X-Requested-With': 'meshport-console' } };
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const res = await fetch('/api/v1' + path, opt);
+    const txt = await res.text();
+    let data = null;
+    if (!o.text || !res.ok) { try { data = txt ? JSON.parse(txt) : null; } catch (_) { data = null; } }
+    if (!res.ok) {
+      const er = (data && data.error) || {};
+      const e = new Error(er.message || ('HTTP ' + res.status));
+      e.status = res.status;
+      e.code = er.code || '';
+      if (!o.noAuth) {
+        if (res.status === 401) toLogin(S().sessionsExpired);
+        else if (res.status === 403 && e.code === 'mfa_required') toMFA();
       }
-      ok.disabled = false;
-    } },
-    h('label', { class: 'field' }, h('span', null, '帳號'), user),
-    h('label', { class: 'field' }, h('span', null, '密碼'), pw),
-    totpRow, err, ok),
-    h('div', { class: 'hint' }, '第一次部署時的管理員密碼由 meshportd init 印出。'));
-  setTimeout(() => user.focus(), 30);
-}
-function showMFARequired() {
-  if ($('#mfa-required')) return;
-  stopStream();
-  authShell(h('div', { id: 'mfa-required', style: 'display:grid;gap:12px' },
-    h('h2', null, '請先啟用兩步驟驗證'),
-    h('div', { class: 'muted' }, '系統管理員要求所有控制台使用者啟用 TOTP 兩步驟驗證，完成後才能使用控制台。'),
-    mfaSetupPanel(async () => { await boot(); }),
-    h('button', { class: 'btn ghost', onclick: logout }, '登出')));
-}
-function mfaSetupPanel(onDone) {
-  const box = h('div', { style: 'display:grid;gap:12px' });
-  const start = async () => {
-    try {
-      const r = await POST('/auth/mfa/setup');
-      const code = h('input', { class: 'input', inputmode: 'numeric', maxlength: 8, placeholder: '6 位數驗證碼' });
-      const err = h('div', { class: 'err small' });
-      box.replaceChildren(
-        h('div', { class: 'small' }, '在驗證器 App（Google Authenticator、1Password、Authy…）新增帳戶，手動輸入以下金鑰，或複製 otpauth 連結：'),
-        h('label', { class: 'field' }, h('span', null, '金鑰'), secretBox(r.secret)),
-        h('label', { class: 'field' }, h('span', null, 'otpauth 連結'), secretBox(r.otpauth_uri)),
-        h('form', { class: 'row', onsubmit: async (e) => {
-          e.preventDefault(); err.textContent = '';
-          try { await POST('/auth/mfa/enable', { code: code.value.trim() }); toast('已啟用兩步驟驗證'); onDone && onDone(); }
-          catch (e2) { err.textContent = e2.message; }
-        } }, code, h('button', { class: 'btn primary', type: 'submit' }, '驗證並啟用')), err);
-      code.focus();
-    } catch (e) { box.replaceChildren(h('div', { class: 'err' }, e.message)); }
-  };
-  box.append(h('button', { class: 'btn primary', onclick: start }, '開始設定'));
-  return box;
-}
-async function logout() {
-  try { await api('POST', '/auth/logout', {}, { noAuthRedirect: true }); } catch (_) { /* ignore */ }
-  S.me = null;
-  showLogin('已登出');
-}
-
-// public page for enrollment links (/enroll#<token>)
-function showEnroll() {
-  const tok = decodeURIComponent(location.hash.slice(1));
-  const server = location.origin;
-  authShell(h('h2', null, '註冊新裝置'),
-    tok ? [
-      h('div', { class: 'muted small' }, '在要加入的裝置上安裝 Meshport 用戶端，第一次開啟時選「使用註冊碼」，填入以下資料：'),
-      h('label', { class: 'field' }, h('span', null, '伺服器網址'), secretBox(server)),
-      h('label', { class: 'field' }, h('span', null, '註冊碼'), secretBox(tok)),
-      h('div', { class: 'hint' }, '桌面版也可以在終端機執行：meshport setup --server ' + server + ' --enroll <註冊碼>。註冊碼有使用次數與期限，請勿公開分享。'),
-    ] : h('div', { class: 'err' }, '連結缺少註冊碼。'),
-    h('a', { class: 'btn', href: '/' }, '前往控制台'));
-}
-
-// ======================================================================
-// shell, routing, live stream
-// ======================================================================
-const PAGES = [
-  ['overview', '概要', 'overview'],
-  ['devices', '裝置管理', 'devices'],
-  ['comms', '通訊管理', 'comms'],
-  ['frp', 'FRP 管理', 'frp'],
-  ['access', '權限與審批', 'access'],
-  ['security', '安全中心', 'security'],
-  ['monitor', '監控與日誌', 'monitor'],
-  ['system', '系統與 API', 'system'],
-];
-const P = {}; // page implementations, filled below
-
-function parseRoute() {
-  const m = location.hash.replace(/^#\/?/, '').split('/');
-  const page = PAGES.some((p) => p[0] === m[0]) ? m[0] : 'overview';
-  return { page, tab: m[1] || '' };
-}
-function go(page, tab) { location.hash = '#/' + page + (tab ? '/' + tab : ''); }
-
-let shellEls = null;
-function renderShell() {
-  const nav = h('nav', { class: 'nav' },
-    h('div', { class: 'brand' }, h('img', { src: '/icon.svg', alt: '' }), h('span', null, S.settings.console_name || 'Meshport')),
-    PAGES.map(([id, title, ic]) => h('a', { href: '#/' + id, 'data-page': id }, icon(ic), title, h('span', { class: 'count', hidden: true }))),
-    h('div', { class: 'foot' },
-      h('a', { href: '/api/docs', target: '_blank', rel: 'noopener' }, icon('book'), 'API 文件'),
-      h('a', { href: '#', onclick: (e) => { e.preventDefault(); accountDialog(); } }, icon('user'),
-        h('span', { class: 'grow' }, S.me.user ? S.me.user.username : '帳戶', h('div', { class: 'sub' }, lab('role', S.role)))),
-      h('a', { href: '#', onclick: (e) => { e.preventDefault(); logout(); } }, icon('logout'), '登出')));
-  const title = h('h1');
-  const liveEl = h('span', { class: 'live', title: '即時資料流' }, h('i'), '即時');
-  const top = h('div', { class: 'top' },
-    h('button', { class: 'icon-btn menu-btn', onclick: () => shell.classList.toggle('nav-open') }, icon('menu')),
-    title, h('span', { class: 'right' }), liveEl,
-    h('button', { class: 'icon-btn', title: '重新整理', onclick: () => S.reload && S.reload() }, icon('refresh')));
-  const content = h('div', { class: 'content' });
-  const shell = h('div', { class: 'shell' }, nav, h('main', { class: 'main' }, top, content));
-  $('#app').replaceChildren(shell);
-  shellEls = { shell, nav, title, content, liveEl };
-  updateBadges();
-}
-function updateBadges() {
-  if (!shellEls) return;
-  for (const [id, n] of Object.entries(S.badges)) {
-    const el = shellEls.nav.querySelector(`a[data-page="${id}"] .count`);
-    if (el) { el.hidden = !n; el.textContent = n > 99 ? '99+' : n; }
+      throw e;
+    }
+    return o.text ? txt : data;
   }
-  if (shellEls.liveEl) shellEls.liveEl.classList.toggle('on', S.wsOn);
-}
-async function refreshBadges() {
-  try {
-    const o = await GET('/admin/overview');
-    S.badges.devices = (o.devices && o.devices.pending) || 0;
-    S.badges.access = ((o.pending && o.pending.grants) || []).length;
-    S.badges.security = (o.alerts || []).filter((a) => a.status === 'open').length;
-    updateBadges();
-  } catch (_) { /* ignore */ }
-}
-
-function route() {
-  if (!S.me || !shellEls) return;
-  const r = parseRoute();
-  S.page = r.page; S.tab = r.tab;
-  closeDrawer();
-  shellEls.shell.classList.remove('nav-open');
-  shellEls.nav.querySelectorAll('a[data-page]').forEach((a) => a.classList.toggle('on', a.dataset.page === r.page));
-  const pg = P[r.page];
-  shellEls.title.textContent = PAGES.find((p) => p[0] === r.page)[1];
-  S.liveHooks = [];
-  S.reload = null;
-  S.onEvent = null;
-  const el = h('div', { class: 'stack' });
-  shellEls.content.replaceChildren(el);
-  try { pg(el, r.tab); } catch (e) { el.replaceChildren(h('div', { class: 'err' }, e.message)); }
-}
-
-/* tabs + data region helper. Returns {data, setReload} */
-function pageTabs(el, page, tabs, current) {
-  const cur = tabs.some((t) => t[0] === current) ? current : tabs[0][0];
-  el.append(h('div', { class: 'tabs' }, tabs.map(([k, t, n]) => h('button', { class: k === cur ? 'on' : '', onclick: () => go(page, k) }, t, n ? h('span', { class: 'n' }, n) : null))));
-  return cur;
-}
-/* region(el, loader): loader(region) returns nodes; S.reload re-runs it. */
-function region(el, loader) {
-  const box = h('div', { class: 'stack' }, h('div', { class: 'empty' }, h('div', { class: 'spinner', style: 'margin:auto' })));
-  el.append(box);
-  let seq = 0;
-  const run = async () => {
-    const my = ++seq;
+  const GET = (p) => api('GET', '/admin/' + p);
+  async function act(fn, okMsg, after) {
     try {
-      const nodes = await loader();
-      if (my !== seq) return;
-      const y = window.scrollY;
-      box.replaceChildren(...[].concat(nodes).filter(Boolean));
-      window.scrollTo(0, y);
+      const r = await fn();
+      if (okMsg) flash(typeof okMsg === 'function' ? okMsg(r) : okMsg);
+      if (after) after(r);
+      reloadSoon(150);
+      return r;
     } catch (e) {
-      if (my !== seq) return;
-      if (e.status !== 401) box.replaceChildren(card(null, h('div', { class: 'err' }, e.message)));
+      flash(e.message);
+      return null;
     }
-  };
-  S.reload = () => { run(); if (S.drawer) S.drawer.ctx.reload(); };
-  run();
-  return run;
-}
-
-// live stream (/admin/stream)
-let evTimer = null;
-function startStream() {
-  stopStream();
-  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  let ws;
-  try { ws = new WebSocket(proto + location.host + '/api/v1/admin/stream'); } catch (_) { return; }
-  S.ws = ws;
-  ws.onopen = () => { S.wsOn = true; S.wsRetry = 0; updateBadges(); };
-  ws.onclose = () => {
-    S.wsOn = false; updateBadges();
-    if (S.ws !== ws || !S.me) return;
-    S.wsRetry = Math.min(S.wsRetry + 1, 6);
-    setTimeout(() => { if (S.ws === ws && S.me) startStream(); }, 1000 * Math.pow(2, S.wsRetry - 1));
-  };
-  ws.onmessage = (m) => {
-    let ev;
-    try { ev = JSON.parse(m.data); } catch (_) { return; }
-    onStreamEvent(ev);
-  };
-}
-function stopStream() {
-  if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch (_) { /* ignore */ } }
-  S.wsOn = false;
-}
-const PAGE_EVENTS = {
-  overview: ['device.', 'grant.', 'alert.', 'frp.', 'session.'],
-  devices: ['device.', 'grant.'],
-  comms: ['session.'],
-  frp: ['frp.'],
-  access: ['grant.', 'device.updated'],
-  security: ['alert.', 'security.', 'device.updated'],
-  system: ['backup.', 'system.'],
-  monitor: ['failure'],
-};
-function onStreamEvent(ev) {
-  const t = ev.type || '';
-  if (t === 'metrics.tick') {
-    const d = ev.data || {};
-    S.live = d;
-    const now = Math.floor(Date.now() / 1000);
-    for (const [k, v] of Object.entries(d)) {
-      const r = (S.ring[k] = S.ring[k] || []);
-      r.push({ t: now, v });
-      if (r.length > 180) r.shift();
-    }
-    S.liveHooks.forEach((fn) => { try { fn(d); } catch (_) { /* ignore */ } });
-    return;
   }
-  if (S.onEvent) { try { S.onEvent(ev); } catch (_) { /* ignore */ } }
-  if (/^(device\.|grant\.|alert\.)/.test(t)) refreshBadgesSoon();
-  const interest = PAGE_EVENTS[S.page] || [];
-  if (interest.some((p) => t.startsWith(p))) {
-    clearTimeout(evTimer);
-    evTimer = setTimeout(() => { if (!$('.overlay')) S.reload && S.reload(); }, 900);
-  }
-}
-let badgeTimer = null;
-function refreshBadgesSoon() { clearTimeout(badgeTimer); badgeTimer = setTimeout(refreshBadges, 700); }
-
-// account dialog
-function accountDialog() {
-  const u = S.me.user || {};
-  const theme = (() => { try { return localStorage.getItem('mp.theme') || ''; } catch (_) { return ''; } })();
-  const body = h('div', { style: 'display:grid;gap:14px' },
-    h('div', { class: 'kv' }, h('div', null, '帳號'), h('div', null, u.username), h('div', null, '角色'), h('div', null, rolePill(S.role)),
-      h('div', null, '兩步驟驗證'), h('div', null, u.mfa_enabled ? pill('已啟用', 'ok') : pill('未啟用', 'warn')),
-      h('div', null, '上次登入'), h('div', null, fmtDate(u.last_login_at))),
-    h('label', { class: 'field' }, h('span', null, '這個瀏覽器的外觀'), selectEl([['', '跟隨系統設定'], ['system', '跟隨作業系統'], ['light', '淺色'], ['dark', '深色']], theme, (v) => {
-      try { if (v) localStorage.setItem('mp.theme', v); else localStorage.removeItem('mp.theme'); } catch (_) { /* ignore */ }
-      applyTheme();
-    }, 'input')),
-    h('div', { class: 'row' },
-      h('button', { class: 'btn', onclick: () => { close(); changePasswordDialog(); } }, '變更密碼'),
-      u.mfa_enabled
-        ? h('button', { class: 'btn danger', onclick: () => { close(); formDialog('停用兩步驟驗證', [{ k: 'code', label: '目前的驗證碼', required: true }], async (v) => { await POST('/auth/mfa/disable', { code: v.code.trim() }); toast('已停用'); await reloadMe(); }, { danger: true, submitLabel: '停用' }); } }, '停用兩步驟驗證')
-        : h('button', { class: 'btn primary', onclick: () => { close(); infoBox('啟用兩步驟驗證', mfaSetupPanel(async () => { closeAll(); await reloadMe(); }), { label: '關閉' }); } }, '啟用兩步驟驗證')));
-  const close = infoBox('我的帳戶', body, { label: '關閉' });
-}
-function closeAll() { document.querySelectorAll('.overlay').forEach((o) => o.remove()); }
-function changePasswordDialog() {
-  formDialog('變更密碼', [
-    { k: 'current', label: '目前的密碼', type: 'password', required: true },
-    { k: 'new', label: '新密碼', type: 'password', required: true, hint: '至少 10 個字元。變更後其他登入工作階段會被登出。' },
-    { k: 'again', label: '再輸入一次新密碼', type: 'password', required: true },
-  ], async (v) => {
-    if (v.new !== v.again) throw new Error('兩次輸入的新密碼不一致');
-    await POST('/auth/password', { current: v.current, new: v.new });
-    toast('密碼已變更');
-  });
-}
-async function reloadMe() {
-  S.me = await GET('/auth/me');
-  S.role = S.me.role;
-  S.settings = S.me.settings || {};
-}
-
-async function boot(mfaSetup) {
-  try { await reloadMe(); }
-  catch (e) {
-    if (e.status === 401) { showLogin(); return; }
-    if (e.status === 0) { authShell(h('div', { class: 'err' }, e.message), h('button', { class: 'btn', onclick: () => boot() }, '重試')); return; }
-    throw e;
-  }
-  applyTheme();
-  if (S.me.kind === 'device') { authShell(h('div', null, '裝置權杖無法登入控制台。')); return; }
-  if (S.role === 'user') {
-    authShell(h('h2', null, '沒有控制台權限'), h('div', { class: 'muted' }, '你的帳號只能用來註冊自己的裝置。需要管理權限請聯絡系統管理員。'),
-      h('button', { class: 'btn', onclick: logout }, '登出'));
-    return;
-  }
-  if (mfaSetup) { showMFARequired(); return; }
-  renderShell();
-  route();
-  startStream();
-  refreshBadges();
-}
-window.addEventListener('hashchange', () => { if (location.pathname === '/enroll') return; route(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && !S.wsOn && !S.ws) startStream(); });
-
-// ======================================================================
-// page: overview
-// ======================================================================
-P.overview = (el) => {
-  region(el, async () => {
-    const o = await GET('/admin/overview');
-    const d = o.devices || {}, ss = o.sessions || {}, fr = o.frp || {}, bw = o.bandwidth || {}, rs = o.resources || {};
-    S.badges.devices = d.pending || 0; S.badges.access = (o.pending.grants || []).length;
-    S.badges.security = (o.alerts || []).filter((a) => a.status === 'open').length; updateBadges();
-
-    const bwBox = h('div');
-    const seed = (k) => (S.ring[k] && S.ring[k].length > 3) ? S.ring[k] : ((o.series && o.series[k]) || []);
-    const drawBW = () => bwBox.replaceChildren(lineChart([
-      { name: 'P2P', points: seed('p2p_bps') }, { name: '中繼', points: seed('relay_bps') }, { name: 'FRP', points: seed('frp_bps') },
-    ], { fmt: fmtRate, legend: true, min: 1024 }));
-    drawBW();
-    let tickN = 0;
-    S.liveHooks.push(() => { if (++tickN % 2 === 0) drawBW(); });
-
-    const resBox = h('div');
-    const drawRes = (r) => resBox.replaceChildren(
-      meter('CPU', r.cpu, fmtPct(r.cpu)), meter('記憶體', r.mem, fmtPct(r.mem)), meter('磁碟', r.disk, fmtPct(r.disk)),
-      h('div', { class: 'kv small', style: 'margin-top:8px' },
-        h('div', null, '負載（1 分）'), h('div', null, r.load1 !== undefined ? r.load1 : '—'),
-        h('div', null, '網路'), h('div', null, '↓ ' + fmtRate(r.net_rx_bps) + '　↑ ' + fmtRate(r.net_tx_bps)),
-        h('div', null, '執行時間'), h('div', null, fmtDur(o.resources.uptime_s))));
-    drawRes(rs);
-    S.liveHooks.push((live) => drawRes(Object.assign({}, rs, live)));
-
-    const pd = o.pending.devices || [], pg = o.pending.grants || [];
-    const pendingBody = (pd.length + pg.length) === 0 ? empty('沒有待處理的項目') : h('div', { class: 'list' },
-      pd.map((x) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', null, '裝置註冊：', h('b', null, x.name)), h('div', { class: 'sub' }, [x.os, x.user, fmtAgo(x.registered_at)].filter(Boolean).join(' · '))),
-        can('operator') ? [btn('核准', () => act(() => POST(`/admin/devices/${x.id}/approve`), '已核准'), 'primary'), btn('拒絕', () => rejectDevice(x), 'danger')] : null)),
-      pg.map((g) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', null, '等級申請：', h('b', null, g.target), ' → ', levelPill(g.level)),
-        h('div', { class: 'sub' }, `${g.requester} 申請 · ${lab('duration', g.duration)} · ${g.reason || '未填理由'}`)),
-        can('operator') ? [btn('核准', () => approveGrant(g), 'primary'), btn('駁回', () => rejectGrant(g), 'danger')] : null)));
-
-    const alerts = o.alerts || [];
-    return [
-      h('div', { class: 'cards' },
-        statCard('在線裝置', `${d.online} / ${d.total}`, `離線 ${d.offline} · 待審批 ${d.pending} · 停用 ${d.disabled} · 封鎖 ${d.banned}`, 'devices_online', (v) => `${v} / ${d.total}`),
-        statCard('通訊工作階段', fmtNum((ss.p2p || 0) + (ss.relay || 0)), `P2P ${ss.p2p} · 中繼 ${ss.relay} · 協商 ${ss.nego} · 失敗 ${ss.fail}`),
-        statCard('FRP 映射', `${fr.active} / ${fr.total}`, `啟用 ${fr.enabled} · 節點在線 ${fr.nodes_online}/${fr.nodes_total}`, 'frp_active', (v) => `${v} / ${fr.total}`),
-        statCard('總頻寬', fmtRate((bw.p2p_bps || 0) + (bw.relay_bps || 0) + (bw.frp_bps || 0)), 'P2P + 中繼 + FRP', 'p2p_bps', (v, l) => fmtRate((l.p2p_bps || 0) + (l.relay_bps || 0) + (l.frp_bps || 0)))),
-      h('div', { class: 'cols' },
-        card('即時頻寬', bwBox),
-        card('伺服器資源', resBox)),
-      h('div', { class: 'cols' },
-        card('待處理', pendingBody, h('a', { class: 'btn sm ghost', href: '#/access' }, '全部審批'), { flush: true }),
-        card('告警', alerts.length ? h('div', { class: 'list' }, alerts.slice(0, 8).map((a) => h('div', { class: 'item' }, sevPill(a.severity),
-          h('div', { class: 'grow' }, h('div', null, a.title), h('div', { class: 'sub' }, (a.detail || '') + ' · ' + fmtAgo(a.updated_at))),
-          a.status === 'open' && can('operator') ? btn('確認', () => act(() => POST(`/admin/alerts/${a.id}/ack`), '已確認')) : pill(lab('astatus', a.status))))) : empty('目前沒有告警'),
-        h('a', { class: 'btn sm ghost', href: '#/security/alerts' }, '全部告警'), { flush: true })),
-    ];
-  });
-};
-
-// shared actions
-async function rejectDevice(d) {
-  if (await confirmBox('拒絕註冊', `要拒絕「${d.name}」的註冊申請嗎？這會刪除這筆註冊。`, { danger: true, label: '拒絕' }))
-    act(() => POST(`/admin/devices/${d.id}/reject`), '已拒絕');
-}
-function approveGrant(g) {
-  formDialog(`核准等級申請：${g.target} → ${lab('level', g.level)}`, [
-    { k: 'duration', label: '有效期限', type: 'select', value: g.duration || 'perm', options: Object.entries(L.duration), hint: '到期後自動恢復原本的等級' },
-    { k: 'note', label: '備註', placeholder: '選填' },
-  ], async (v) => { await POST(`/admin/grants/${g.id}/approve`, v); toast('已核准'); }, { submitLabel: '核准', intro: g.reason ? h('div', { class: 'notice info' }, `申請理由：${g.reason}（由 ${g.requester} 提出）`) : null });
-}
-function rejectGrant(g) {
-  formDialog(`駁回等級申請：${g.target}`, [{ k: 'note', label: '駁回原因', placeholder: '選填，會記錄在稽核日誌' }],
-    async (v) => { await POST(`/admin/grants/${g.id}/reject`, v); toast('已駁回'); }, { submitLabel: '駁回', danger: true });
-}
-
-// ======================================================================
-// page: devices
-// ======================================================================
-let groupCache = null;
-async function groups() { const r = await GET('/admin/groups'); groupCache = r.items || []; return groupCache; }
-P.devices = (el, tab) => {
-  const cur = pageTabs(el, 'devices', [['list', '裝置'], ['groups', '群組'], ['enroll', '註冊碼']], tab);
-  if (cur === 'groups') return devicesGroups(el);
-  if (cur === 'enroll') return devicesEnroll(el);
-  const f = filt('devices', { state: '', q: '', group: '', level: '' });
-  const counts = h('span');
-  const stateSeg = h('span');
-  const drawSeg = (c) => stateSeg.replaceChildren(seg([['', `全部 ${c.all || 0}`], ['online', `在線 ${c.online || 0}`], ['offline', `離線 ${c.offline || 0}`], ['pending', `待審批 ${c.pending || 0}`], ['disabled', `停用 ${c.disabled || 0}`], ['banned', `封鎖 ${c.banned || 0}`]],
-    f.state, (v) => { f.state = v; reload(); }));
-  drawSeg({});
-  const groupSel = selectEl([['', '所有群組']], f.group, (v) => { f.group = v; reload(); });
-  groups().then((gs) => { gs.forEach((g) => groupSel.append(h('option', { value: g.name }, g.name))); groupSel.value = f.group; }).catch(() => {});
-  el.append(h('div', { class: 'toolbar' }, stateSeg,
-    searchBox(f.q, '名稱、裝置 ID、IP', (v) => { f.q = v; reload(); }), groupSel,
-    selectEl([['', '所有等級'], ['admin', '管理級'], ['member', '成員級'], ['guest', '訪客級']], f.level, (v) => { f.level = v; reload(); }),
-    counts, can('operator') ? h('button', { class: 'btn primary sm right', onclick: () => go('devices', 'enroll') }, icon('plus'), '註冊新裝置') : null));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/devices' + qs(f));
-    drawSeg(r.counts || {});
-    return card(null, table([
-      { t: '裝置', f: (d) => nameCell(h('span', { class: 'row', style: 'gap:6px' }, h('span', { class: 'dot ' + (d.online ? 'ok' : '') }), d.name), d.did) },
-      { t: '類型 / 系統', f: (d) => h('div', null, lab('kind', d.kind), h('div', { class: 'sub' }, d.os || '')) },
-      { t: '等級', f: (d) => levelPill(d.level) },
-      { t: '狀態', f: (d) => deviceStatePill(d) },
-      { t: '群組', f: (d) => d.group || '—' },
-      { t: '擁有者', f: (d) => d.user || '—' },
-      { t: 'IP', f: (d) => h('div', { class: 'mono' }, d.ip || '—', d.lan_ip ? h('div', { class: 'sub' }, 'LAN ' + d.lan_ip) : null) },
-      { t: '最後上線', f: (d) => d.online ? '現在' : fmtAgo(d.last_seen_at) },
-      { t: '', cls: 'act', f: (d) => d.status === 'pending' && can('operator') ? [btn('核准', () => act(() => POST(`/admin/devices/${d.id}/approve`), '已核准'), 'primary'), btn('拒絕', () => rejectDevice(d), 'danger')] : null },
-    ], r.items, { onRow: (d) => deviceDrawer(d.id), empty: '沒有符合條件的裝置' }), null, { flush: true });
-  });
-};
-
-function deviceDrawer(id) {
-  openDrawer('裝置', async (ctx) => {
-    const r = await GET('/admin/devices/' + id);
-    const d = r.device;
-    ctx.setTitle(d.name);
-    const op = can('operator');
-    const actions = op ? h('div', { class: 'row' },
-      btn('編輯', () => editDevice(d)),
-      d.status === 'pending' ? [btn('核准', () => act(() => POST(`/admin/devices/${d.id}/approve`), '已核准'), 'primary'), btn('拒絕', () => rejectDevice(d), 'danger')] : null,
-      d.status === 'active' ? btn('停用', async () => { if (await confirmBox('停用裝置', `停用後「${d.name}」會立即斷線且無法登入，可隨時重新啟用。`, { danger: true, label: '停用' })) act(() => POST(`/admin/devices/${d.id}/disable`), '已停用'); }) : null,
-      d.status === 'disabled' ? btn('重新啟用', () => act(() => POST(`/admin/devices/${d.id}/enable`), '已啟用')) : null,
-      d.status !== 'banned' ? btn('封鎖', () => formDialog(`封鎖「${d.name}」`, [{ k: 'reason', label: '原因', placeholder: '選填' }], async (v) => { await POST(`/admin/devices/${d.id}/ban`, v); toast('已封鎖'); }, { danger: true, submitLabel: '封鎖' }), 'danger')
-        : btn('解除封鎖', () => act(() => POST(`/admin/devices/${d.id}/unban`), '已解除封鎖')),
-      btn('要求輪替金鑰', async () => { if (await confirmBox('要求輪替金鑰', '裝置下次連線時會產生新的身分金鑰。在線時會立即執行。')) act(() => POST(`/admin/devices/${d.id}/rotate-key`), '已送出要求'); }),
-      btn('刪除', async () => { if (await confirmBox('刪除裝置', `刪除「${d.name}」及其映射與紀錄？裝置需要重新註冊才能再加入，這個動作無法復原。`, { danger: true, label: '刪除' })) { await act(() => DEL('/admin/devices/' + d.id), '已刪除'); closeDrawer(); } }, 'danger')) : null;
-
-    const cmdOut = h('pre', { class: 'code', hidden: true });
-    const cmdSel = selectEl(Object.entries(L.cmd), 'ping', () => {}, 'input sm');
-    const cmdBtn = btn('執行', async () => {
-      cmdBtn.disabled = true; cmdOut.hidden = false; cmdOut.textContent = '等待裝置回應…';
-      try {
-        const res = await POST(`/admin/devices/${d.id}/command`, { name: cmdSel.value, timeout_s: 20 });
-        cmdOut.textContent = (res.ok ? '✓ 成功' : '✗ 失敗') + (res.output ? '\n\n' + res.output : '');
-      } catch (e) { cmdOut.textContent = '✗ ' + e.message; }
-      cmdBtn.disabled = false;
-    }, 'primary');
-
-    return [
-      h('div', { class: 'row' }, deviceStatePill(d), levelPill(d.level), d.key_rotate_required ? pill('待輪替金鑰', 'warn') : null),
-      actions,
-      h('section', null, h('h4', null, '基本資料'), h('div', { class: 'kv' },
-        h('div', null, '裝置 ID'), h('div', { class: 'mono' }, d.did),
-        h('div', null, '類型 / 系統'), h('div', null, `${lab('kind', d.kind)} · ${d.os || '—'}`),
-        h('div', null, '用戶端版本'), h('div', null, d.client_version || '—'),
-        h('div', null, '擁有者'), h('div', null, d.user || '—'),
-        h('div', null, '群組'), h('div', null, d.group || '—'),
-        h('div', null, '能力'), h('div', null, (r.capabilities || []).map((c) => lab('cap', c)).join('、') || '—'),
-        h('div', null, '公網 IP'), h('div', { class: 'mono' }, d.ip || '—'),
-        h('div', null, '區網 IP'), h('div', { class: 'mono' }, d.lan_ip || '—'),
-        h('div', null, 'NAT 類型'), h('div', null, d.nat_type || '—'),
-        h('div', null, '目前連線'), h('div', null, r.connection ? `${r.connection.ip} · 自 ${fmtAgo(r.connection.since)}` : '離線（最後上線 ' + fmtAgo(d.last_seen_at) + '）'),
-        h('div', null, '註冊時間'), h('div', null, fmtDate(d.registered_at)))),
-      h('section', null, h('h4', null, '身分金鑰'), h('div', { class: 'kv' },
-        h('div', null, '指紋'), h('div', { class: 'mono' }, d.fingerprint),
-        h('div', null, '金鑰年齡'), h('div', null, `${r.key_age_days} 天（建立於 ${fmtDate(d.key_created_at)}）`),
-        h('div', null, '加密公鑰'), h('div', null, d.box_pubkey ? pill('已上傳', 'ok') : pill('尚未上傳', 'warn')))),
-      op && d.online ? h('section', null, h('h4', null, '遠端指令'), h('div', { class: 'row' }, cmdSel, cmdBtn), cmdOut) : null,
-      h('section', null, h('h4', null, `FRP 映射（${(r.mappings || []).length}）`), table([
-        { t: '名稱', f: (m) => m.name }, { t: '協定', f: (m) => m.proto.toUpperCase() }, { t: '公開位址', f: (m) => h('span', { class: 'mono' }, m.public_addr || '—') }, { t: '狀態', f: (m) => mapPill(m.status) },
-      ], r.mappings, { empty: '沒有映射' })),
-      h('section', null, h('h4', null, '等級申請'), table([
-        { t: '等級', f: (g) => levelPill(g.level) }, { t: '狀態', f: (g) => grantPill(g.status) }, { t: '申請者', f: (g) => g.requester }, { t: '時間', f: (g) => fmtAgo(g.created_at) },
-      ], r.grants, { empty: '沒有紀錄' })),
-      h('section', null, h('h4', null, '最近登入'), table([
-        { t: '時間', f: (x) => fmtDate(x.at) }, { t: 'IP', f: (x) => h('span', { class: 'mono' }, x.ip) }, { t: '結果', f: (x) => x.success ? pill('成功', 'ok') : pill('失敗', 'bad') }, { t: '說明', f: (x) => x.reason || '' },
-      ], r.logins, { empty: '沒有紀錄' })),
-    ];
-  });
-}
-async function editDevice(d) {
-  const gs = groupCache || await groups().catch(() => []);
-  let users = [];
-  try { users = (await GET('/admin/users')).items || []; } catch (_) { /* viewer */ }
-  formDialog(`編輯「${d.name}」`, [
-    { k: 'name', label: '名稱', value: d.name, required: true },
-    { k: 'kind', label: '類型', type: 'select', value: d.kind, options: Object.entries(L.kind) },
-    { k: 'level', label: '等級', type: 'select', value: d.level, options: Object.entries(L.level), hint: '直接變更等級會立即生效並通知裝置；需要時效請到「權限與審批」直接授予。' },
-    { k: 'group', label: '群組', type: 'select', value: d.group_id || '', options: [['', '（無）']].concat(gs.map((g) => [g.id, g.name])) },
-    { k: 'user', label: '擁有者', type: 'select', value: d.user_id || '', options: [['', '（無）']].concat(users.map((u) => [u.id, u.username])) },
-  ], async (v) => { await PATCH('/admin/devices/' + d.id, v); toast('已儲存'); });
-}
-
-function devicesGroups(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '群組用來整理裝置，並可作為探索範圍（設定 → 探索範圍 = 群組）。'),
-    can('operator') ? h('button', { class: 'btn primary sm right', onclick: () => groupDialog() }, icon('plus'), '新增群組') : null));
-  region(el, async () => card(null, table([
-    { t: '名稱', f: (g) => g.name }, { t: '說明', f: (g) => g.description || '—' }, { t: '裝置數', f: (g) => g.devices }, { t: '建立時間', f: (g) => fmtDate(g.created_at) },
-    { t: '', cls: 'act', f: (g) => can('operator') ? [btn('編輯', () => groupDialog(g)), btn('刪除', async () => { if (await confirmBox('刪除群組', `刪除「${g.name}」？群組內的裝置不會被刪除。`, { danger: true, label: '刪除' })) act(() => DEL('/admin/groups/' + g.id), '已刪除'); }, 'danger')] : null },
-  ], await groups(), { empty: '還沒有群組' }), null, { flush: true }));
-}
-function groupDialog(g) {
-  formDialog(g ? '編輯群組' : '新增群組', [
-    { k: 'name', label: '名稱', value: g && g.name, required: true }, { k: 'description', label: '說明', value: g && g.description },
-  ], async (v) => { if (g) await PATCH('/admin/groups/' + g.id, v); else await POST('/admin/groups', v); toast('已儲存'); });
-}
-
-function devicesEnroll(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '註冊碼讓新裝置不必輸入帳密即可加入，可限制使用次數、期限、預設等級與群組。'),
-    h('button', { class: 'btn primary sm right', onclick: enrollDialog }, icon('plus'), '產生註冊碼')));
-  region(el, async () => {
-    const r = await GET('/admin/enroll-tokens');
-    return card(null, table([
-      { t: '備註', f: (e) => e.note || '—' }, { t: '等級', f: (e) => levelPill(e.level) }, { t: '群組', f: (e) => e.group || '—' }, { t: '擁有者', f: (e) => e.user || '—' },
-      { t: '自動核准', f: (e) => e.auto_approve ? pill('是', 'ok') : pill('否') }, { t: '剩餘次數', f: (e) => e.uses_left },
-      { t: '到期', f: (e) => fmtIn(e.expires_at) }, { t: '建立者', f: (e) => e.created_by },
-      { t: '', cls: 'act', f: (e) => can('operator') ? btn('刪除', () => act(() => DEL('/admin/enroll-tokens/' + e.id), '已刪除'), 'danger') : null },
-    ], r.items, { empty: '沒有有效的註冊碼' }), null, { flush: true });
-  });
-}
-async function enrollDialog() {
-  const gs = groupCache || await groups().catch(() => []);
-  let users = [];
-  try { users = (await GET('/admin/users')).items || []; } catch (_) { /* ignore */ }
-  const isUser = S.role === 'user';
-  formDialog('產生註冊碼', [
-    { k: 'note', label: '備註', placeholder: '例如：王小明的筆電' },
-    { k: 'level', label: '預設等級', type: 'select', value: 'guest', options: Object.entries(L.level) },
-    { k: 'group', label: '群組', type: 'select', value: '', options: [['', '（無）']].concat(gs.map((g) => [g.id, g.name])) },
-    { k: 'user', label: '擁有者', type: 'select', value: '', options: [['', '（我自己）']].concat(users.map((u) => [u.id, u.username])) },
-    { k: 'auto_approve', label: '使用後自動核准', type: 'check', value: true },
-    { k: 'uses', label: '可使用次數', type: 'number', value: 1, min: 1, max: 1000 },
-    { k: 'ttl_hours', label: '有效時間（小時）', type: 'number', value: 24, min: 1, max: 8760 },
-  ].filter((x) => !isUser || ['note'].includes(x.k)), async (v) => {
-    const r = await POST('/admin/enroll-tokens', v);
-    showSecret('註冊碼已產生', [['註冊碼', r.token], ['註冊連結（可傳給對方）', r.enroll_url], ['伺服器網址', location.origin]],
-      `到期時間 ${fmtDate(r.expires_at)}。用戶端第一次開啟時選「使用註冊碼」即可。註冊碼只會顯示這一次。`);
-  }, { submitLabel: '產生' });
-}
-
-// ======================================================================
-// page: comms
-// ======================================================================
-P.comms = (el) => {
-  const f = filt('comms', { mode: '', path: '', state: '', q: '', include_closed: false });
-  const summary = h('div', { class: 'cards' });
-  el.append(summary, h('div', { class: 'toolbar' },
-    selectEl([['', '所有模式'], ['auto', 'P2P 優先'], ['p2p', '僅 P2P'], ['relay', '僅中繼']], f.mode, (v) => { f.mode = v; reload(); }),
-    selectEl([['', '所有路徑'], ['p2p', 'P2P 直連'], ['relay', '中繼（TURN / 伺服器）'], ['nego', '協商中'], ['fail', '失敗'], ['idle', '閒置']], f.path, (v) => { f.path = v; reload(); }),
-    selectEl([['', '所有狀態'], ['up', '已連線'], ['nego', '協商中'], ['idle', '閒置'], ['fail', '失敗']], f.state, (v) => { f.state = v; reload(); }),
-    searchBox(f.q, '裝置名稱', (v) => { f.q = v; reload(); }),
-    h('label', { class: 'check small' }, sw(f.include_closed, (c) => { f.include_closed = c; reload(); }), '包含已結束')));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/sessions' + qs(f));
-    const items = r.items || [];
-    const m = r.relay_messages_24h || {};
-    summary.replaceChildren(
-      statCard('目前工作階段', items.filter((x) => !x.ended_at).length, `P2P ${items.filter((x) => x.path === 'p2p').length} · 中繼 ${items.filter((x) => x.path === 'relay').length}`),
-      statCard('24 小時中繼訊息', fmtNum((m.queued || 0) + (m.delivered || 0) + (m.read || 0)), `排隊 ${m.queued || 0} · 已送達 ${m.delivered || 0} · 已讀 ${m.read || 0}`),
-      statCard('即時 P2P 流量', fmtRate(S.live.p2p_bps || 0), '中繼 ' + fmtRate(S.live.relay_bps || 0), 'p2p_bps', (v) => fmtRate(v)));
-    return card(null, table([
-      { t: '雙方', f: (x) => h('div', null, h('b', null, x.a || x.a_id), ' ↔ ', h('b', null, x.b || x.b_id), h('div', { class: 'sub' }, fmtAgo(x.started_at) + ' 開始')) },
-      { t: '模式', f: (x) => pill(lab('mode', x.mode)) },
-      { t: '路徑', f: (x) => h('div', null, pill(lab('path', x.path), { p2p: 'ok', turn: 'violet', relay: 'info', nego: 'warn' }[x.path]), x.via ? h('div', { class: 'sub' }, x.via) : null) },
-      { t: '狀態', f: (x) => x.ended_at ? pill('已結束') : pill(lab('sstate', x.state), { fail: 'bad', nego: 'warn' }[x.state]) },
-      { t: '延遲', f: (x) => x.latency_ms !== null && x.latency_ms !== undefined ? x.latency_ms + ' ms' : '—' },
-      { t: '速率', f: (x) => x.rate_bps ? fmtRate(x.rate_bps) : '—' },
-      { t: '訊息 送/達/讀/敗', f: (x) => h('span', { class: 'mono' }, `${x.msgs_sent}/${x.msgs_delivered}/${x.msgs_read}/${x.msgs_failed}`) },
-      { t: '檔案', f: (x) => x.file ? h('div', { style: 'min-width:120px' }, h('div', { class: 'small' }, x.file.name), h('div', { class: 'bar' }, h('i', { style: `width:${x.file.percent || 0}%` })), h('div', { class: 'sub' }, `${x.file.percent || 0}% · ${fmtRate(x.file.rate_bps)}`)) : '—' },
-      { t: '', cls: 'act', f: (x) => !x.ended_at && can('operator') ? btn('中斷', async () => { if (await confirmBox('中斷工作階段', `要求 ${x.a} 與 ${x.b} 關閉這個連線？雙方之後可重新建立。`, { danger: true, label: '中斷' })) act(() => POST(`/admin/sessions/${x.id}/disconnect`), '已送出'); }, 'danger') : (x.fail_reason ? h('span', { class: 'sub' }, x.fail_reason) : null) },
-    ], items, { empty: '目前沒有通訊工作階段' }), null, { flush: true });
-  });
-};
-
-// ======================================================================
-// page: FRP
-// ======================================================================
-const PROTOS = ['tcp', 'udp', 'http', 'https', 'stcp', 'xtcp'];
-P.frp = (el, tab) => {
-  const cur = pageTabs(el, 'frp', [['mappings', '映射'], ['nodes', '節點（frps）'], ['clients', 'frpc 用戶端']], tab);
-  if (cur === 'nodes') return frpNodes(el);
-  if (cur === 'clients') return frpClients(el);
-  const f = filt('frp', { node: '', proto: '', state: '', q: '' });
-  const nodeSel = selectEl([['', '所有節點']], f.node, (v) => { f.node = v; reload(); });
-  GET('/admin/frp/nodes').then((r) => { (r.items || []).forEach((n) => nodeSel.append(h('option', { value: n.name }, n.name))); nodeSel.value = f.node; }).catch(() => {});
-  el.append(h('div', { class: 'toolbar' }, nodeSel,
-    selectEl([['', '所有協定']].concat(PROTOS.map((p) => [p, p.toUpperCase()])), f.proto, (v) => { f.proto = v; reload(); }),
-    selectEl([['', '所有狀態']].concat(Object.entries(L.mstatus)), f.state, (v) => { f.state = v; reload(); }),
-    searchBox(f.q, '名稱、裝置、網域', (v) => { f.q = v; reload(); }),
-    can('operator') ? h('span', { class: 'row right' },
-      h('button', { class: 'btn sm danger', onclick: stopAllDialog }, '全部停止'),
-      h('button', { class: 'btn primary sm', onclick: () => mappingDialog() }, icon('plus'), '新增映射')) : null));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/frp/mappings' + qs(f));
-    return card(null, table([
-      { t: '名稱', f: (m) => nameCell(m.name, m.device) },
-      { t: '節點', f: (m) => m.node },
-      { t: '協定', f: (m) => pill(m.proto.toUpperCase()) },
-      { t: '本機', f: (m) => h('span', { class: 'mono' }, `${m.local_ip}:${m.local_port}`) },
-      { t: '公開位址', f: (m) => m.public_addr ? (/^https?:/.test(m.public_addr) ? h('a', { href: m.public_addr, target: '_blank', rel: 'noopener noreferrer', class: 'mono' }, m.public_addr) : h('span', { class: 'mono' }, m.public_addr)) : h('span', { class: 'sub' }, m.proto === 'stcp' || m.proto === 'xtcp' ? '僅限訪客端' : '—') },
-      { t: '狀態', f: (m) => h('div', null, mapPill(m.status), m.last_error ? h('div', { class: 'sub err' }, m.last_error) : null) },
-      { t: '連線 / 流量', f: (m) => h('div', { class: 'small' }, `${m.conns} 條`, h('div', { class: 'sub' }, `↓${fmtBytes(m.traffic_in)} ↑${fmtBytes(m.traffic_out)}`)) },
-      { t: '', cls: 'act', f: (m) => can('operator') ? [
-        m.enabled ? btn('停止', () => act(() => POST(`/admin/frp/mappings/${m.id}/stop`), '已停止')) : btn('啟動', () => act(() => POST(`/admin/frp/mappings/${m.id}/start`), '已啟動'), 'primary'),
-        btn('編輯', () => mappingDialog(m)),
-        btn('刪除', async () => { if (await confirmBox('刪除映射', `刪除「${m.name}」？frps 端會立即拒絕這個代理。`, { danger: true, label: '刪除' })) act(() => DEL('/admin/frp/mappings/' + m.id), '已刪除'); }, 'danger')] : null },
-    ], r.items, { empty: '沒有映射' }), null, { flush: true });
-  });
-};
-async function stopAllDialog() {
-  let nodes = [];
-  try { nodes = (await GET('/admin/frp/nodes')).items || []; } catch (_) { /* ignore */ }
-  formDialog('停止所有映射', [
-    { type: 'info', tone: 'warn', label: '所有映射會被停用，frps 端會立即中斷對應的代理。之後需要逐一重新啟動。' },
-    { k: 'node', label: '範圍', type: 'select', value: '', options: [['', '所有節點']].concat(nodes.map((n) => [n.id, n.name])) },
-  ], async (v) => { const r = await POST('/admin/frp/stop-all', v.node ? { node: v.node } : {}); toast(`已停止 ${r && r.stopped !== undefined ? r.stopped : ''} 個映射`); }, { danger: true, submitLabel: '全部停止' });
-}
-async function mappingDialog(m) {
-  const [nr, dr] = await Promise.all([GET('/admin/frp/nodes'), m ? Promise.resolve({ items: [] }) : GET('/admin/devices' + qs({ state: '' }))]);
-  const nodes = nr.items || [];
-  if (!nodes.length) { toast('請先新增 FRP 節點', true); return; }
-  const devs = (dr.items || []).filter((d) => d.status === 'active' && d.level !== 'guest');
-  if (!m && !devs.length) { toast('沒有可以發布服務的裝置（需成員級以上且已啟用）', true); return; }
-  const isWeb = (v) => v.proto === 'http' || v.proto === 'https';
-  const isPort = (v) => v.proto === 'tcp' || v.proto === 'udp';
-  const isSecret = (v) => v.proto === 'stcp' || v.proto === 'xtcp';
-  const fields = [
-    m ? null : { k: 'device', label: '裝置', type: 'select', options: devs.map((d) => [d.id, `${d.name}（${lab('level', d.level)}）`]), required: true },
-    { k: 'name', label: '名稱', value: m && m.name, required: true, placeholder: '例如 nas-web', hint: '同一台裝置內不可重複；只能用英數、- 與 _' },
-    { k: 'node', label: '節點', type: 'select', value: m && m.node_id, options: nodes.map((n) => [n.id, `${n.name}（${n.public_addr}${n.allow_ports ? '，可用埠 ' + n.allow_ports : ''}）`]) },
-    { k: 'proto', label: '協定', type: 'select', value: (m && m.proto) || 'tcp', options: PROTOS.map((p) => [p, p.toUpperCase()]) },
-    { k: 'local_ip', label: '本機位址', value: (m && m.local_ip) || '127.0.0.1' },
-    { k: 'local_port', label: '本機埠', type: 'number', value: m && m.local_port, required: true, min: 1, max: 65535 },
-    { k: 'remote_port', label: '公開埠', type: 'number', value: m && m.remote_port || '', min: 1, max: 65535, show: isPort, hint: '必須在節點允許的範圍內' },
-    { k: 'domains', label: '自訂網域', value: m && (m.domains || []).join(', '), show: isWeb, placeholder: 'blog.example.com, www.example.com', hint: '以逗號分隔；或改填子網域' },
-    { k: 'subdomain', label: '子網域', value: m && m.subdomain, show: isWeb, hint: '節點需設定子網域主機' },
-    { k: 'secret_key', label: '訪客金鑰', value: m && m.secret_key, show: isSecret, hint: '留空會自動產生；訪客端需要同一把金鑰' },
-    { k: 'use_encryption', label: '加密傳輸', type: 'check', value: m ? m.use_encryption : true },
-    { k: 'use_compression', label: '壓縮', type: 'check', value: m && m.use_compression },
-    { k: 'bandwidth_limit', label: '頻寬上限', value: m && m.bandwidth_limit, placeholder: '例如 1MB 或 512KB，留空不限' },
-  ].filter(Boolean);
-  formDialog(m ? `編輯映射「${m.name}」` : '新增映射', fields, async (v) => {
-    const body = { name: v.name.trim(), node: v.node, proto: v.proto, local_ip: v.local_ip.trim() || '127.0.0.1', local_port: v.local_port,
-      use_encryption: v.use_encryption, use_compression: v.use_compression, bandwidth_limit: v.bandwidth_limit.trim() };
-    if (isPort(v)) body.remote_port = v.remote_port || 0;
-    if (isWeb(v)) { body.domains = v.domains.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean); body.subdomain = v.subdomain.trim(); }
-    if (isSecret(v)) body.secret_key = v.secret_key.trim();
-    if (m) await PATCH('/admin/frp/mappings/' + m.id, body);
-    else { body.device = v.device; await POST('/admin/frp/mappings', body); }
-    toast('已儲存，裝置會自動重新載入 frpc');
-  }, { wide: true });
-}
-function frpNodes(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '每個節點是一台 frps。由 meshportd 監管的節點可以在這裡重新啟動；遠端節點需把下載的設定套用到該台 frps。'),
-    can('admin') ? h('button', { class: 'btn primary sm right', onclick: () => nodeDialog() }, icon('plus'), '新增節點') : null));
-  region(el, async () => {
-    const r = await GET('/admin/frp/nodes');
-    return card(null, table([
-      { t: '節點', f: (n) => nameCell(n.name, n.region) },
-      { t: '公開位址', f: (n) => h('span', { class: 'mono' }, `${n.public_addr}:${n.bind_port}`) },
-      { t: '狀態', f: (n) => h('div', null, n.enabled ? nodePill(n.status) : pill('已停用'), n.last_error ? h('div', { class: 'sub err' }, n.last_error) : null) },
-      { t: '模式', f: (n) => n.managed ? pill('本機監管', 'accent') : pill('遠端') },
-      { t: '版本', f: (n) => n.version || '—' },
-      { t: 'frpc', f: (n) => n.frpc_clients },
-      { t: '映射 在線/總數', f: (n) => `${n.mappings_online} / ${n.mappings}` },
-      { t: '可用埠', f: (n) => h('span', { class: 'mono small' }, n.allow_ports || '不限') },
-      { t: '', cls: 'act', f: (n) => [
-        n.managed && can('operator') ? btn('重新啟動', async () => { if (await confirmBox('重新啟動 frps', `重新啟動「${n.name}」？所有經過它的連線會短暫中斷。`, { label: '重新啟動' })) act(() => POST(`/admin/frp/nodes/${n.id}/restart`), '已重新啟動'); }) : null,
-        can('admin') ? [btn('設定檔', () => nodeConfig(n)), btn('編輯', () => nodeDialog(n)),
-          btn('刪除', async () => { if (await confirmBox('刪除節點', `刪除「${n.name}」以及它的 ${n.mappings} 個映射？`, { danger: true, label: '刪除' })) act(() => DEL('/admin/frp/nodes/' + n.id), '已刪除'); }, 'danger')] : null] },
-    ], r.items, { empty: '還沒有 FRP 節點' }), null, { flush: true });
-  });
-}
-async function nodeConfig(n) {
-  try {
-    const r = await GET(`/admin/frp/nodes/${n.id}/config`, { text: true });
-    const text = typeof r === 'string' ? r : JSON.stringify(r, null, 2);
-    infoBox(`frps.toml — ${n.name}`, [h('div', { class: 'notice' }, '含有 frps 驗證權杖與 plugin 金鑰，請勿外流。'), h('pre', { class: 'code' }, text),
-      h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => copy(text) }, icon('copy'), '複製'))], { wide: true, label: '關閉' });
-  } catch (e) { toast(e.message, true); }
-}
-function nodeDialog(n) {
-  formDialog(n ? `編輯節點「${n.name}」` : '新增 FRP 節點', [
-    { k: 'name', label: '名稱', value: n && n.name, required: true, placeholder: '例如 tpe-1' },
-    { k: 'region', label: '地區', value: n && n.region, placeholder: '例如 Taipei' },
-    { k: 'public_addr', label: '公開位址', value: n && n.public_addr, required: true, placeholder: 'IP 或網域，frpc 與訪客由此連入' },
-    { k: 'bind_port', label: 'frps 連線埠（bindPort）', type: 'number', value: (n && n.bind_port) || 7000, required: true },
-    { k: 'vhost_http_port', label: 'HTTP 虛擬主機埠', type: 'number', value: n ? n.vhost_http_port || '' : '', placeholder: '例如 80，留空停用' },
-    { k: 'vhost_https_port', label: 'HTTPS 虛擬主機埠', type: 'number', value: n ? n.vhost_https_port || '' : '', placeholder: '例如 443，留空停用' },
-    { k: 'subdomain_host', label: '子網域主機', value: n && n.subdomain_host, placeholder: 'apps.example.com（需設定萬用 DNS）' },
-    { k: 'allow_ports', label: '允許的公開埠', value: n && n.allow_ports, placeholder: '6000-7000,9000', hint: '留空表示不限制' },
-    { k: 'dashboard_addr', label: 'frps 儀表板位址', value: n && n.dashboard_addr, placeholder: '127.0.0.1:7500，用來讀取即時統計' },
-    { k: 'dashboard_user', label: '儀表板帳號', value: n && n.dashboard_user },
-    { k: 'dashboard_password', label: '儀表板密碼', type: 'password', value: '', hint: n ? '留空表示不變更' : '' },
-    { k: 'managed', label: '由 meshportd 在本機啟動並監管這台 frps', type: 'check', value: n ? n.managed : false },
-    { k: 'enabled', label: '啟用', type: 'check', value: n ? n.enabled : true },
-  ], async (v) => {
-    const body = Object.assign({}, v);
-    for (const k of ['vhost_http_port', 'vhost_https_port']) if (body[k] === null) body[k] = 0;
-    if (!body.dashboard_password) delete body.dashboard_password;
-    if (n) { await PATCH('/admin/frp/nodes/' + n.id, body); toast('已儲存'); return; }
-    const r = await POST('/admin/frp/nodes', body);
-    if (r && r.frps_toml && !v.managed) {
-      infoBox('節點已新增', [h('div', { class: 'notice info' }, '這是遠端節點。請把下面的 frps.toml 放到那台主機並重新啟動 frps，它會透過 plugin 回報給 meshportd。'),
-        h('pre', { class: 'code' }, r.frps_toml), h('button', { class: 'btn', onclick: () => copy(r.frps_toml) }, icon('copy'), '複製')], { wide: true });
-    } else toast('已新增');
-  }, { wide: true });
-}
-function frpClients(el) {
-  region(el, async () => {
-    const r = await GET('/admin/frp/clients');
-    return card(null, table([
-      { t: '裝置', f: (c) => c.device || c.device_id || '—' },
-      { t: '節點', f: (c) => c.node },
-      { t: 'frpc 版本', f: (c) => c.version || '—' },
-      { t: '主機', f: (c) => h('div', null, c.hostname || '—', h('div', { class: 'sub' }, [c.os, c.arch].filter(Boolean).join('/'))) },
-      { t: '來源位址', f: (c) => h('span', { class: 'mono' }, c.addr || '—') },
-      { t: '在線代理', f: (c) => c.proxies_online },
-      { t: '登入', f: (c) => fmtAgo(c.login_at) },
-      { t: '最後心跳', f: (c) => fmtAgo(c.last_ping_at) },
-    ], r.items, { empty: '目前沒有已連線的 frpc' }), null, { flush: true });
-  });
-}
-
-// ======================================================================
-// page: access & approvals
-// ======================================================================
-P.access = (el, tab) => {
-  const cur = pageTabs(el, 'access', [['grants', '等級申請'], ['levels', '等級說明'], ['users', '控制台使用者']], tab);
-  if (cur === 'levels') return accessLevels(el);
-  if (cur === 'users') return accessUsers(el);
-  const f = filt('access', { status: 'pending' });
-  const segBox = h('span');
-  const drawSeg = (c) => segBox.replaceChildren(seg([['pending', `待審批 ${c.pending || 0}`], ['approved', '已核准'], ['rejected', '已駁回'], ['revoked', '已撤銷'], ['expired', '已到期'], ['', '全部']], f.status, (v) => { f.status = v; reload(); }));
-  drawSeg({});
-  el.append(h('div', { class: 'toolbar' }, segBox, can('operator') ? h('button', { class: 'btn primary sm right', onclick: directGrantDialog }, icon('plus'), '直接授予等級') : null));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/grants' + qs(f));
-    drawSeg(r.counts || {});
-    S.badges.access = (r.counts && r.counts.pending) || 0; updateBadges();
-    return card(null, table([
-      { t: '目標裝置', f: (g) => h('b', null, g.target) },
-      { t: '申請等級', f: (g) => h('span', { class: 'row', style: 'gap:6px' }, g.prev_level ? [levelPill(g.prev_level), '→'] : null, levelPill(g.level)) },
-      { t: '期限', f: (g) => g.status === 'approved' ? fmtIn(g.expires_at) : lab('duration', g.duration) },
-      { t: '申請者 / 理由', f: (g) => h('div', null, g.requester, h('div', { class: 'sub' }, g.reason || '—')) },
-      { t: '狀態', f: (g) => h('div', null, grantPill(g.status), g.decided_by ? h('div', { class: 'sub' }, `${g.decided_by} · ${fmtAgo(g.decided_at)}${g.decision_note ? ' · ' + g.decision_note : ''}`) : null) },
-      { t: '申請時間', f: (g) => fmtAgo(g.created_at) },
-      { t: '', cls: 'act', f: (g) => !can('operator') ? null : g.status === 'pending' ? [btn('核准', () => approveGrant(g), 'primary'), btn('駁回', () => rejectGrant(g), 'danger')]
-        : g.status === 'approved' ? btn('撤銷', async () => { if (await confirmBox('撤銷授予', `撤銷後「${g.target}」會恢復為 ${lab('level', g.prev_level)}。`, { danger: true, label: '撤銷' })) act(() => POST(`/admin/grants/${g.id}/revoke`), '已撤銷'); }, 'danger') : null },
-    ], r.items, { empty: f.status === 'pending' ? '沒有待審批的申請' : '沒有紀錄' }), null, { flush: true });
-  });
-};
-async function directGrantDialog() {
-  let r;
-  try { r = await GET('/admin/devices'); } catch (e) { toast(e.message, true); return; }
-  const devs = (r.items || []).filter((d) => d.status === 'active');
-  if (!devs.length) { toast('沒有可授權的裝置，請先註冊並核准裝置', true); return; }
-  formDialog('直接授予等級', [
-    { k: 'target', label: '裝置', type: 'select', options: devs.map((d) => [d.id, `${d.name}（目前 ${lab('level', d.level)}）`]) },
-    { k: 'level', label: '新等級', type: 'select', value: 'member', options: Object.entries(L.level) },
-    { k: 'duration', label: '期限', type: 'select', value: 'perm', options: Object.entries(L.duration), hint: '有期限的授予到期後自動恢復原等級' },
-    { k: 'reason', label: '理由', placeholder: '選填' },
-  ], async (v) => { await POST('/admin/grants', v); toast('已授予'); });
-}
-function accessLevels(el) {
-  region(el, async () => {
-    const r = await GET('/admin/levels');
-    return h('div', { class: 'cards' }, (r.items || []).map((lv) => card(null, h('div', { style: 'display:grid;gap:10px' },
-      h('div', { class: 'row' }, levelPill(lv.level), h('span', { class: 'right muted small' }, `${lv.devices} 台裝置`)),
-      h('ul', { style: 'margin:0;padding-left:18px' }, (lv.capabilities || []).map((c) => h('li', null, lab('cap', c))))))));
-  });
-}
-function accessUsers(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '管理員：全部權限；操作員：可變更裝置、映射、審批；檢視者：唯讀；一般使用者：只能註冊自己的裝置。'),
-    can('admin') ? h('button', { class: 'btn primary sm right', onclick: () => userDialog() }, icon('plus'), '新增使用者') : null));
-  region(el, async () => {
-    const r = await GET('/admin/users');
-    return card(null, table([
-      { t: '帳號', f: (u) => nameCell(u.username, u.display_name || u.email) },
-      { t: '角色', f: (u) => rolePill(u.role) },
-      { t: '狀態', f: (u) => u.disabled ? pill('已停用', 'warn') : pill('啟用', 'ok') },
-      { t: '兩步驟驗證', f: (u) => u.mfa_enabled ? pill('已啟用', 'ok') : pill('未啟用', 'warn') },
-      { t: '裝置', f: (u) => h('div', null, u.devices, h('div', { class: 'sub' }, Object.entries(u.levels || {}).map(([k, v]) => `${lab('level', k)} ${v}`).join(' · '))) },
-      { t: '上次登入', f: (u) => fmtAgo(u.last_login_at) },
-      { t: '', cls: 'act', f: (u) => can('admin') ? [btn('編輯', () => userDialog(u)),
-        u.mfa_enabled ? btn('重設 MFA', async () => { if (await confirmBox('重設兩步驟驗證', `移除「${u.username}」的驗證器綁定？對方下次登入只需要密碼。`, { danger: true, label: '重設' })) act(() => POST(`/admin/users/${u.id}/reset-mfa`), '已重設'); }) : null,
-        S.me.user && S.me.user.id === u.id ? null : btn('刪除', async () => { if (await confirmBox('刪除使用者', `刪除「${u.username}」？他的裝置不會被刪除，但會失去擁有者。`, { danger: true, label: '刪除' })) act(() => DEL('/admin/users/' + u.id), '已刪除'); }, 'danger')] : null },
-    ], r.items), null, { flush: true });
-  });
-}
-function userDialog(u) {
-  const roles = Object.entries(L.role);
-  formDialog(u ? `編輯「${u.username}」` : '新增使用者', [
-    u ? null : { k: 'username', label: '帳號', required: true },
-    { k: 'display_name', label: '顯示名稱', value: u && u.display_name },
-    { k: 'email', label: 'Email', type: 'email', value: u && u.email },
-    { k: 'role', label: '角色', type: 'select', value: (u && u.role) || 'viewer', options: roles },
-    { k: 'password', label: u ? '重設密碼' : '密碼', type: 'password', hint: u ? '留空表示不變更' : '留空會自動產生一組' },
-    u ? { k: 'disabled', label: '停用這個帳號', type: 'check', value: u.disabled } : null,
-  ].filter(Boolean), async (v) => {
-    const body = Object.assign({}, v);
-    if (!body.password) delete body.password;
-    if (u) { await PATCH('/admin/users/' + u.id, body); toast('已儲存'); return; }
-    const r = await POST('/admin/users', body);
-    if (r && r.password) showSecret('使用者已建立', [['帳號', r.user.username], ['初始密碼', r.password]], '請把初始密碼交給對方，並請他登入後立即變更。');
-    else toast('已建立');
-  });
-}
-
-// ======================================================================
-// page: security
-// ======================================================================
-P.security = (el, tab) => {
-  const cur = pageTabs(el, 'security', [['alerts', '告警'], ['logins', '登入紀錄'], ['keys', '裝置金鑰'], ['mfa', '兩步驟驗證'], ['tokens', 'API 權杖'], ['acl', '存取控制'], ['bans', '封鎖清單']], tab);
-  ({ alerts: secAlerts, logins: secLogins, keys: secKeys, mfa: secMFA, tokens: secTokens, acl: secACL, bans: secBans })[cur](el);
-};
-function secAlerts(el) {
-  const f = filt('alerts', { status: 'open', severity: '' });
-  el.append(h('div', { class: 'toolbar' },
-    seg([['open', '未處理'], ['acked', '已確認'], ['resolved', '已解決'], ['', '全部']], f.status, (v) => { f.status = v; route(); }),
-    selectEl([['', '所有等級'], ['crit', '嚴重'], ['warn', '警告'], ['info', '資訊']], f.severity, (v) => { f.severity = v; reload(); })));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/alerts' + qs(f));
-    S.badges.security = r.open || 0; updateBadges();
-    return card(null, table([
-      { t: '等級', f: (a) => sevPill(a.severity) },
-      { t: '告警', f: (a) => h('div', null, h('b', null, a.title), h('div', { class: 'sub' }, a.detail || '')) },
-      { t: '類別', f: (a) => a.category },
-      { t: '次數', f: (a) => a.count },
-      { t: '狀態', f: (a) => pill(lab('astatus', a.status), { open: 'bad', acked: 'warn', resolved: 'ok' }[a.status]) },
-      { t: '最後發生', f: (a) => fmtAgo(a.updated_at) },
-      { t: '', cls: 'act', f: (a) => can('operator') && a.status !== 'resolved' ? [a.status === 'open' ? btn('確認', () => act(() => POST(`/admin/alerts/${a.id}/ack`), '已確認')) : null, btn('標記解決', () => act(() => POST(`/admin/alerts/${a.id}/resolve`), '已解決'), 'primary')] : null },
-    ], r.items, { empty: '沒有告警' }), null, { flush: true });
-  });
-}
-function secLogins(el) {
-  const f = filt('logins', { kind: '', abnormal: false, failed: false, q: '' });
-  el.append(h('div', { class: 'toolbar' },
-    selectEl([['', '所有類型'], ['user', '控制台'], ['device', '裝置'], ['api', 'API 權杖']], f.kind, (v) => { f.kind = v; reload(); }),
-    h('label', { class: 'check small' }, sw(f.failed, (c) => { f.failed = c; reload(); }), '只看失敗'),
-    h('label', { class: 'check small' }, sw(f.abnormal, (c) => { f.abnormal = c; reload(); }), '只看異常'),
-    searchBox(f.q, '帳號、裝置、IP', (v) => { f.q = v; reload(); }),
-    can('operator') ? h('button', { class: 'btn sm right', onclick: () => formDialog('解除暫時封鎖', [{ k: 'ip', label: 'IP 位址', required: true }], async (v) => { await POST('/admin/security/unblock', { ip: v.ip.trim() }); toast('已解除'); }) }, '解除 IP 暫時封鎖') : null));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/security/logins' + qs(f));
-    return card(null, table([
-      { t: '時間', f: (x) => fmtDate(x.at) },
-      { t: '對象', f: (x) => nameCell(x.subject || '—', { user: '控制台', device: '裝置', api: 'API' }[x.kind] || x.kind) },
-      { t: '方式', f: (x) => x.method },
-      { t: 'IP', f: (x) => h('span', { class: 'mono' }, x.ip) },
-      { t: '結果', f: (x) => h('div', null, x.success ? pill('成功', 'ok') : pill('失敗', 'bad'), x.abnormal ? [' ', pill('異常', 'warn')] : null) },
-      { t: '說明', f: (x) => h('div', { class: 'small' }, x.reason || '', x.abnormal_reason ? h('div', { class: 'sub' }, x.abnormal_reason) : null) },
-      { t: '', cls: 'act', f: (x) => !x.success && can('operator') ? btn('解除封鎖', () => act(() => POST('/admin/security/unblock', { ip: x.ip }), '已解除 ' + x.ip)) : null },
-    ], r.items, { empty: '沒有紀錄' }), null, { flush: true });
-  });
-}
-function secKeys(el) {
-  region(el, async () => {
-    const r = await GET('/admin/security/keys');
-    return [h('div', { class: 'muted small' }, `身分金鑰超過 ${r.max_age_days} 天會標示為需要輪替。要求輪替後，裝置下次連線會自動產生新金鑰（舊金鑰簽署確認）。`),
-      card(null, table([
-        { t: '裝置', f: (k) => nameCell(k.device, k.did) },
-        { t: '指紋', f: (k) => h('span', { class: 'mono small' }, k.fingerprint) },
-        { t: '金鑰年齡', f: (k) => `${k.age_days} 天` },
-        { t: '加密公鑰', f: (k) => k.has_box_key ? pill('有', 'ok') : pill('無', 'warn') },
-        { t: '狀態', f: (k) => pill({ ok: '正常', stale: '需要輪替', rotation_pending: '已要求輪替' }[k.state] || k.state, { ok: 'ok', stale: 'warn', rotation_pending: 'info' }[k.state]) },
-        { t: '', cls: 'act', f: (k) => can('operator') && k.state !== 'rotation_pending' ? btn('要求輪替', () => act(() => POST(`/admin/devices/${k.device_id}/rotate-key`), '已送出要求')) : null },
-      ], r.items), null, { flush: true })];
-  });
-}
-function secMFA(el) {
-  region(el, async () => {
-    const r = await GET('/admin/security/mfa');
-    const me = S.me.user || {};
-    return [
-      h('div', { class: 'cards' }, statCard('已啟用', `${r.enabled} / ${r.console_users}`, '控制台使用者'),
-        card(null, h('div', { style: 'display:grid;gap:8px' }, h('div', { class: 'row' }, h('b', null, '要求所有控制台使用者啟用'),
-          h('span', { class: 'right' }, sw(r.required, async (c, inp) => {
-            if (c && !me.mfa_enabled) { inp.checked = false; toast('請先在「我的帳戶」替自己啟用兩步驟驗證', true); return; }
-            await act(() => PUT('/admin/security/mfa', { required: c }), c ? '已要求啟用' : '已取消要求');
-          }, !can('admin')))), h('div', { class: 'hint' }, '開啟後，沒有啟用的使用者登入後必須先完成設定才能使用控制台。')))),
-      card(`尚未啟用（${(r.missing || []).length}）`, table([
-        { t: '帳號', f: (u) => u.username }, { t: '角色', f: (u) => rolePill(u.role) }, { t: '上次提醒', f: (u) => fmtAgo(u.reminded_at) },
-      ], r.missing, { empty: '所有使用者都已啟用' }), can('operator') && (r.missing || []).length ? btn('全部提醒', () => act(() => POST('/admin/security/mfa/remind', {}), '已送出提醒（觸發 user.mfa_reminder Webhook）')) : null, { flush: true }),
-    ];
-  });
-}
-function tokenTable(items, revokePath) {
-  return table([
-    { t: '名稱', f: (t) => nameCell(t.name, t.prefix + '…') },
-    { t: '權限', f: (t) => (t.scopes || []).map((sc) => pill({ read: '讀取', write: '寫入', admin: '管理' }[sc] || sc)) },
-    { t: '擁有者', f: (t) => t.owner || '—' },
-    { t: '狀態', f: (t) => pill({ active: '有效', revoked: '已撤銷', expired: '已過期' }[t.state] || t.state, { active: 'ok', revoked: '', expired: 'warn' }[t.state]) },
-    { t: '到期', f: (t) => t.expires_at ? fmtDate(t.expires_at) : '不過期' },
-    { t: '最後使用', f: (t) => t.last_used_at ? h('div', null, fmtAgo(t.last_used_at), h('div', { class: 'sub mono' }, t.last_used_ip)) : '從未使用' },
-    { t: '建立', f: (t) => fmtDate(t.created_at) },
-    { t: '', cls: 'act', f: (t) => t.state === 'active' ? btn('撤銷', async () => { if (await confirmBox('撤銷', `撤銷「${t.name}」？使用它的程式會立即失去存取權。`, { danger: true, label: '撤銷' })) act(() => DEL(revokePath + t.id), '已撤銷'); }, 'danger') : null },
-  ], items, { empty: '沒有權杖' });
-}
-function tokenDialog(title, path, hint) {
-  formDialog(title, [
-    { k: 'name', label: '名稱', required: true, placeholder: '例如 grafana、備份腳本' },
-    { k: 'scopes', label: '權限', type: 'multi', value: ['read'], options: [['read', '讀取'], ['write', '寫入（操作員）'], ['admin', '管理']], hint: '實際權限不會超過擁有者的角色' },
-    { k: 'ttl_days', label: '有效天數', type: 'number', value: 90, min: 0, hint: '0 表示不過期' },
-  ], async (v) => {
-    if (!v.scopes.length) throw new Error('請至少選擇一項權限');
-    const r = await POST(path, v);
-    showSecret('權杖已建立', [['權杖', r.token]], '這個權杖只會顯示這一次。呼叫 API 時放在 Authorization: Bearer <權杖>。');
-  }, { submitLabel: '建立', intro: hint ? h('div', { class: 'hint' }, hint) : null });
-}
-function secTokens(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '個人 API 權杖代表你自己呼叫 API（例如自動化腳本、Prometheus 抓取 /metrics）。'),
-    h('button', { class: 'btn primary sm right', onclick: () => tokenDialog('建立個人 API 權杖', '/admin/security/tokens') }, icon('plus'), '建立權杖')));
-  region(el, async () => card(null, tokenTable((await GET('/admin/security/tokens')).items, '/admin/security/tokens/'), null, { flush: true }));
-}
-function secACL(el) {
-  region(el, async () => {
-    const r = await GET('/admin/security/acl');
-    return [
-      h('div', { class: 'notice info' }, '拒絕規則會封鎖該範圍的所有流量（API、裝置、frpc、已發布服務的訪客）；只要存在任何允許規則，控制台與 API 權杖就只能從允許的範圍存取。', h('div', { class: 'small', style: 'margin-top:4px' }, '你目前的 IP：', h('code', null, r.your_ip))),
-      card('規則', table([
-        { t: '動作', f: (a) => a.action === 'deny' ? pill('拒絕', 'bad') : pill('允許', 'ok') },
-        { t: '範圍', f: (a) => h('span', { class: 'mono' }, a.cidr) },
-        { t: '備註', f: (a) => a.note || '—' },
-        { t: '建立', f: (a) => `${a.created_by} · ${fmtDate(a.created_at)}` },
-        { t: '', cls: 'act', f: (a) => can('admin') ? btn('刪除', () => act(() => DEL('/admin/security/acl/' + a.id), '已刪除'), 'danger') : null },
-      ], r.items, { empty: '沒有規則（所有位址都可以存取）' }), can('admin') ? h('button', { class: 'btn primary sm', onclick: () => formDialog('新增存取規則', [
-        { k: 'action', label: '動作', type: 'select', value: 'deny', options: [['deny', '拒絕'], ['allow', '允許（限制控制台來源）']] },
-        { k: 'cidr', label: 'IP 或 CIDR', required: true, placeholder: '203.0.113.0/24 或 198.51.100.7' },
-        { k: 'note', label: '備註' },
-      ], async (v) => {
-        if (v.action === 'allow' && !(r.items || []).some((x) => x.action === 'allow') && !(await confirmBox('確認', `新增第一條允許規則後，只有 ${v.cidr} 可以使用控制台。請確認包含你目前的 IP（${r.your_ip}），否則你會被鎖在外面。`, { label: '我確定' }))) return false;
-        await POST('/admin/security/acl', v); toast('已新增');
-      }) }, icon('plus'), '新增規則') : null, { flush: true }),
-    ];
-  });
-}
-function secBans(el) {
-  region(el, async () => {
-    const r = await GET('/admin/security/bans');
-    return card(null, table([
-      { t: '裝置', f: (b) => nameCell(b.name, b.did) },
-      { t: '原因', f: (b) => b.ban_reason || '—' },
-      { t: '擁有者', f: (b) => b.user || '—' },
-      { t: '最後 IP', f: (b) => h('span', { class: 'mono' }, b.ip || '—') },
-      { t: '最後上線', f: (b) => fmtAgo(b.last_seen_at) },
-      { t: '', cls: 'act', f: (b) => can('operator') ? btn('解除封鎖', () => act(() => POST(`/admin/devices/${b.id}/unban`), '已解除')) : null },
-    ], r.items, { empty: '沒有被封鎖的裝置' }), null, { flush: true });
-  });
-}
-
-// ======================================================================
-// page: monitor
-// ======================================================================
-P.monitor = (el, tab) => {
-  const cur = pageTabs(el, 'monitor', [['metrics', '指標'], ['failures', '連線失敗'], ['logs', '服務日誌'], ['audit', '稽核紀錄']], tab);
-  ({ metrics: monMetrics, failures: monFailures, logs: monLogs, audit: monAudit })[cur](el);
-};
-function monMetrics(el) {
-  const f = filt('metrics', { range: '1h' });
-  el.append(h('div', { class: 'toolbar' }, seg([['live', '即時'], ['5m', '5 分鐘'], ['1h', '1 小時'], ['24h', '24 小時'], ['7d', '7 天']], f.range, (v) => { f.range = v; route(); })));
-  const reload = region(el, async () => {
-    const [r, p] = await Promise.all([GET('/admin/metrics' + qs({ range: f.range })), GET('/admin/metrics/p2p')]);
-    const sr = r.series || {};
-    const pts = (k) => sr[k] || [];
-    const c = (title, series, opts) => card(title, lineChart(series, opts));
-    const p2pItems = (p.items || []).map((x) => ({ t: (toDate(x.hour) || new Date()).getTime() / 1000, v: x.rate || 0 }));
-    return [
-      h('div', { class: 'cards' },
-        statCard('CPU', fmtPct(r.latest.cpu), `負載 ${r.latest.load1}`, 'cpu', fmtPct),
-        statCard('記憶體', fmtPct(r.latest.mem), `${fmtNum(r.latest.mem_used_mb)} / ${fmtNum(r.latest.mem_total_mb)} MB`, 'mem', fmtPct),
-        statCard('磁碟', fmtPct(r.latest.disk), `剩餘 ${r.latest.disk_free_gb} GB`, 'disk', fmtPct),
-        statCard('裝置 WebSocket', r.latest.ws_conns, `在線裝置 ${r.latest.devices_online}`, 'ws_conns', (v) => v),
-        statCard('P2P 成功率（24h）', p.attempted ? fmtPct(p.rate) : '—', `${p.succeeded} / ${p.attempted} 次`)),
-      h('div', { class: 'charts' },
-        c('CPU / 記憶體 / 磁碟（%）', [{ name: 'CPU', points: pts('cpu') }, { name: '記憶體', points: pts('mem') }, { name: '磁碟', points: pts('disk') }], { fmt: (v) => Math.round(v) + '%', max: 100 }),
-        c('網路', [{ name: '下載', points: pts('net_rx_bps') }, { name: '上傳', points: pts('net_tx_bps') }], { fmt: fmtRate, min: 1024 }),
-        c('傳輸流量', [{ name: 'P2P', points: pts('p2p_bps') }, { name: '中繼', points: pts('relay_bps') }, { name: 'FRP', points: pts('frp_bps') }], { fmt: fmtRate, min: 1024 }),
-        c('工作階段', [{ name: 'P2P', points: pts('sessions_p2p') }, { name: '中繼', points: pts('sessions_relay') }, { name: '協商中', points: pts('sessions_nego') }], { min: 3 }),
-        c('在線裝置 / 在線映射', [{ name: '裝置', points: pts('devices_online') }, { name: 'FRP 映射', points: pts('frp_active') }], { min: 3 }),
-        c('P2P 成功率（%，每小時）', [{ name: '成功率', points: pts('p2p_success').length ? pts('p2p_success') : p2pItems }], { fmt: (v) => Math.round(v) + '%', max: 100 })),
-    ];
-  });
-  if (f.range === 'live') {
-    let n = 0;
-    S.liveHooks.push(() => { if (++n % 3 === 0 && !$('.overlay')) reload(); });
-  }
-}
-function monFailures(el) {
-  const f = filt('failures', { kind: '' });
-  const sumBox = h('div', { class: 'cards' });
-  el.append(sumBox, h('div', { class: 'toolbar' }, seg([['', '全部'], ['p2p', 'P2P'], ['relay', '中繼'], ['frp', 'FRP'], ['auth', '驗證']], f.kind, (v) => { f.kind = v; reload(); })));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/failures' + qs(f));
-    const l = r.last_24h || {};
-    sumBox.replaceChildren(...['p2p', 'relay', 'frp', 'auth'].map((k) => statCard(`${lab('fkind', k)} 失敗（24h）`, fmtNum(l[k] || 0))));
-    return card(null, table([
-      { t: '時間', f: (x) => fmtDate(x.at) },
-      { t: '類型', f: (x) => pill(lab('fkind', x.kind), { p2p: 'info', relay: 'violet', frp: 'warn', auth: 'bad' }[x.kind]) },
-      { t: '對象', f: (x) => [x.a, x.b].filter(Boolean).join(' ↔ ') || '—' },
-      { t: '原因', f: (x) => h('div', null, x.reason, x.detail ? h('div', { class: 'sub' }, typeof x.detail === 'string' ? x.detail : JSON.stringify(x.detail)) : null) },
-    ], r.items, { empty: '沒有失敗紀錄' }), null, { flush: true });
-  });
-}
-function monLogs(el) {
-  const f = filt('logs', { level: '', source: '', q: '', follow: true });
-  let rows = [];
-  const tbody = h('tbody');
-  const lvPill = (lv) => pill(lv, { error: 'bad', warn: 'warn', info: 'info', debug: '' }[lv]);
-  const rowEl = (x) => h('tr', null, h('td', { class: 'nowrap small' }, fmtDate(x.ts)), h('td', null, lvPill(x.level)), h('td', { class: 'small' }, x.source || ''), h('td', { class: 'mono' }, x.msg));
-  const more = btn('載入更早的紀錄', () => load(true));
-  el.append(h('div', { class: 'toolbar' },
-    selectEl([['', '所有層級'], ['error', 'error'], ['warn', 'warn 以上'], ['info', 'info 以上'], ['debug', 'debug']], f.level, (v) => { f.level = v; load(); }),
-    searchBox(f.source, '來源（hub、frp、audit…）', (v) => { f.source = v; load(); }),
-    searchBox(f.q, '關鍵字', (v) => { f.q = v; load(); }),
-    h('label', { class: 'check small' }, sw(f.follow, (c) => { f.follow = c; }), '即時追蹤')));
-  const tableBox = card(null, h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, h('th', null, '時間'), h('th', null, '層級'), h('th', null, '來源'), h('th', null, '訊息'))), tbody)), null, { flush: true });
-  el.append(tableBox, h('div', { class: 'row' }, more));
-  async function load(older) {
+  async function copy(text) {
+    const s = S();
     try {
-      const q = Object.assign({}, f, { follow: '', limit: 200 });
-      if (older && rows.length) q.before = rows[rows.length - 1].id;
-      const r = await GET('/admin/logs' + qs(q));
-      const items = r.items || [];
-      rows = older ? rows.concat(items) : items;
-      if (!older) tbody.replaceChildren();
-      items.forEach((x) => tbody.append(rowEl(x)));
-      if (!rows.length) tbody.replaceChildren(h('tr', null, h('td', { colspan: 4 }, empty('沒有紀錄'))));
-      more.hidden = items.length < 200;
-    } catch (e) { toast(e.message, true); }
+      await navigator.clipboard.writeText(text);
+      flash(s.copied);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_e) { ok = false; }
+      ta.remove();
+      flash(ok ? s.copied : s.copyFail);
+    }
   }
-  const rank = { debug: 0, info: 1, warn: 2, error: 3 };
-  S.reload = () => load();
-  S.onEvent = (ev) => {
-    if (ev.type !== 'log' || !f.follow) return;
-    const x = ev.data || {};
-    if (f.level && (rank[x.level] || 0) < (rank[f.level] || 0)) return;
-    if (f.source && !(x.source || '').includes(f.source)) return;
-    if (f.q && !(x.msg || '').toLowerCase().includes(f.q.toLowerCase())) return;
-    const r = { id: x.id, ts: x.ts || ev.time, level: x.level, source: x.source, msg: x.msg };
-    if (!rows.length) tbody.replaceChildren();
-    rows.unshift(r);
-    tbody.prepend(rowEl(r));
-    if (tbody.children.length > 1000) tbody.lastChild.remove();
-  };
-  load();
-}
-function monAudit(el) {
-  const f = filt('audit', { q: '', action: '', offset: 0 });
-  el.append(h('div', { class: 'toolbar' },
-    searchBox(f.action, '動作（例如 device.、frp.mapping）', (v) => { f.action = v; f.offset = 0; reload(); }),
-    searchBox(f.q, '操作者、目標', (v) => { f.q = v; f.offset = 0; reload(); })));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/audit' + qs(Object.assign({}, f, { limit: 100 })));
-    const items = r.items || [];
-    return [card(null, table([
-      { t: '時間', f: (a) => fmtDate(a.at) },
-      { t: '操作者', f: (a) => nameCell(a.actor, { user: '使用者', device: '裝置', token: 'API 權杖', system: '系統' }[a.actor_type] || a.actor_type) },
-      { t: '動作', f: (a) => h('code', null, a.action) },
-      { t: '目標', f: (a) => h('div', { class: 'small' }, a.target_type, a.target_id ? h('div', { class: 'sub mono' }, a.target_id) : null) },
-      { t: '內容', f: (a) => { const t = a.detail && Object.keys(a.detail).length ? JSON.stringify(a.detail) : ''; return h('span', { class: 'mono small', title: t }, t.length > 90 ? t.slice(0, 90) + '…' : t); } },
-      { t: 'IP', f: (a) => h('span', { class: 'mono small' }, a.ip || '') },
-    ], items, { empty: '沒有紀錄' }), null, { flush: true }),
-    h('div', { class: 'row' }, f.offset > 0 ? btn('上一頁', () => { f.offset = Math.max(0, f.offset - 100); reload(); }) : null,
-      items.length === 100 ? btn('下一頁', () => { f.offset += 100; reload(); }) : null)];
-  });
-}
 
-// ======================================================================
-// page: system & API
-// ======================================================================
-P.system = (el, tab) => {
-  const tabs = [['status', '服務狀態'], ['backups', '備份'], ['webhooks', 'Webhook'], ['apikeys', 'API 金鑰'], ['update', '線上更新'], ['settings', '系統設定'], ['endpoints', 'API 端點']];
-  const cur = pageTabs(el, 'system', can('admin') ? tabs : tabs.filter((t) => t[0] !== 'apikeys'), tab);
-  ({ status: sysStatus, backups: sysBackups, webhooks: sysWebhooks, apikeys: sysAPIKeys, update: sysUpdate, settings: sysSettings, endpoints: sysEndpoints })[cur](el);
-};
-function sysStatus(el) {
-  region(el, async () => {
-    const [st, ver, db] = await Promise.all([GET('/admin/system/status'), GET('/admin/system/versions'), GET('/admin/system/db')]);
-    const dbBox = h('div');
-    const drawDB = (d) => dbBox.replaceChildren(h('div', { class: 'kv' },
-      h('div', null, '引擎'), h('div', null, d.engine), h('div', null, '結構版本'), h('div', null, d.schema_version),
-      h('div', null, '檔案'), h('div', { class: 'mono small' }, d.path),
-      h('div', null, '大小'), h('div', null, `${fmtBytes(d.pages * d.page_size)}（WAL ${fmtBytes(d.wal_bytes)}）`),
-      d.integrity !== undefined ? [h('div', null, '完整性檢查'), h('div', null, d.integrity === 'ok' ? pill('ok', 'ok') : pill(String(d.integrity), 'bad'))] : null),
-    h('div', { class: 'tbl-wrap', style: 'margin-top:10px' }, table([{ t: '資料表', f: (x) => x[0] }, { t: '筆數', f: (x) => fmtNum(x[1]) }], Object.entries(d.rows || {}))));
-    drawDB(db);
-    return [
-      h('div', { class: 'cards' }, statCard('版本', st.version), statCard('執行時間', fmtDur(st.uptime_s)), statCard('公開網址', h('span', { class: 'small mono' }, st.public_url || '未設定'))),
-      card('服務', table([
-        { t: '服務', f: (x) => h('b', null, x.name) },
-        { t: '類型', f: (x) => ({ core: '核心', frps: 'frps', external: '外部' }[x.kind] || x.kind) },
-        { t: '狀態', f: (x) => pill(lab('nstatus', x.status), { running: 'ok', online: 'ok', external: 'info', unknown: '', offline: 'bad', crashed: 'bad' }[x.status]) },
-        { t: '說明', f: (x) => h('span', { class: 'small' }, x.detail || '') },
-        { t: '', cls: 'act', f: (x) => x.restartable && can('admin') ? btn('重新啟動', async () => { if (await confirmBox('重新啟動服務', `重新啟動「${x.name}」？相關連線會短暫中斷並自動重連。`, { label: '重新啟動' })) act(() => POST(`/admin/system/services/${encodeURIComponent(x.name)}/restart`), '已重新啟動'); }) : null },
-      ], st.services), null, { flush: true }),
-      h('div', { class: 'cols' },
-        card('元件版本', table([{ t: '元件', f: (x) => x.name }, { t: '版本', f: (x) => h('span', { class: 'mono' }, x.version) }], ver.items), null, { flush: true }),
-        card('資料庫', dbBox, btn('完整性檢查', async () => { try { drawDB(await GET('/admin/system/db?check=1')); } catch (e) { toast(e.message, true); } }))),
-    ];
-  });
-}
-function sysBackups(el) {
-  region(el, async () => {
-    const r = await GET('/admin/system/backups');
-    const sch = r.schedule || {};
-    return [
-      h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, sch.hour_utc >= 0 ? `每天 UTC ${pad(sch.hour_utc)}:00 自動備份，保留最近 ${sch.keep} 份。存放於 ${r.dir}` : '已停用排程備份。', ' 可在「系統設定」調整。'),
-        can('admin') ? h('button', { class: 'btn primary sm right', onclick: () => act(() => POST('/admin/system/backups'), '備份完成') }, '立即備份') : null),
-      card(null, table([
-        { t: '時間', f: (b) => fmtDate(b.created_at) },
-        { t: '類型', f: (b) => b.kind === 'manual' ? '手動' : '排程' },
-        { t: '檔案', f: (b) => h('span', { class: 'mono small' }, b.file) },
-        { t: '大小', f: (b) => fmtBytes(b.size) },
-        { t: '狀態', f: (b) => b.status === 'ok' ? pill('完成', 'ok') : h('div', null, pill(b.status, b.status === 'running' ? 'info' : 'bad'), b.error ? h('div', { class: 'sub err' }, b.error) : null) },
-        { t: 'SHA-256', f: (b) => h('span', { class: 'mono small', title: b.sha256 }, (b.sha256 || '').slice(0, 12)) },
-        { t: '', cls: 'act', f: (b) => can('admin') && b.status === 'ok' ? [h('a', { class: 'btn sm', href: `/api/v1/admin/system/backups/${encodeURIComponent(b.id)}/download`, download: b.file }, '下載'),
-          btn('刪除', async () => { if (await confirmBox('刪除備份', `刪除 ${b.file}？`, { danger: true, label: '刪除' })) act(() => DEL('/admin/system/backups/' + b.id), '已刪除'); }, 'danger')] : null },
-      ], r.items, { empty: '還沒有備份' }), null, { flush: true }),
-    ];
-  });
-}
-let hookTypes = [];
-function sysWebhooks(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '事件以 POST JSON 送出，並以 X-Meshport-Signature（HMAC-SHA256）簽章。'),
-    can('admin') ? h('button', { class: 'btn primary sm right', onclick: () => webhookDialog() }, icon('plus'), '新增 Webhook') : null));
-  region(el, async () => {
-    const r = await GET('/admin/system/webhooks');
-    hookTypes = r.event_types || [];
-    return card(null, table([
-      { t: '名稱 / 網址', f: (w) => nameCell(w.name || '—', w.url) },
-      { t: '事件', f: (w) => h('span', { class: 'small' }, (w.events || []).join(', ')) },
-      { t: '啟用', f: (w) => sw(w.enabled, (c) => act(() => PATCH('/admin/system/webhooks/' + w.id, { enabled: c }), c ? '已啟用' : '已停用'), !can('admin')) },
-      { t: '最後投遞', f: (w) => w.last_delivery_at ? h('div', null, fmtAgo(w.last_delivery_at), h('div', { class: 'sub' }, w.last_error ? h('span', { class: 'err' }, w.last_error) : 'HTTP ' + w.last_status)) : '尚未投遞' },
-      { t: '連續失敗', f: (w) => w.fail_count ? pill(String(w.fail_count), 'bad') : '0' },
-      { t: '', cls: 'act', f: (w) => can('admin') ? [btn('測試', () => act(() => POST(`/admin/system/webhooks/${w.id}/test`), '已送出測試事件')), btn('編輯', () => webhookDialog(w)),
-        btn('刪除', async () => { if (await confirmBox('刪除 Webhook', `刪除 ${w.url}？`, { danger: true, label: '刪除' })) act(() => DEL('/admin/system/webhooks/' + w.id), '已刪除'); }, 'danger')] : null },
-    ], r.items, { empty: '還沒有 Webhook' }), null, { flush: true });
-  });
-}
-function webhookDialog(w) {
-  formDialog(w ? '編輯 Webhook' : '新增 Webhook', [
-    { k: 'name', label: '名稱', value: w && w.name },
-    { k: 'url', label: '網址', type: 'url', value: w && w.url, required: true, placeholder: 'https://example.com/hooks/meshport' },
-    { k: 'events', label: '事件', type: 'multi', value: w ? w.events : ['*'], options: [['*', '全部']].concat(hookTypes.map((t) => [t, t])) },
-    { k: 'enabled', label: '啟用', type: 'check', value: w ? w.enabled : true },
-  ], async (v) => {
-    if (!v.events.length) v.events = ['*'];
-    if (w) { await PATCH('/admin/system/webhooks/' + w.id, v); toast('已儲存'); return; }
-    const r = await POST('/admin/system/webhooks', v);
-    showSecret('Webhook 已建立', [['簽章金鑰', r.secret]], '用這把金鑰驗證 X-Meshport-Signature。它只會顯示這一次。');
-  }, { wide: true });
-}
-function sysAPIKeys(el) {
-  el.append(h('div', { class: 'toolbar' }, h('span', { class: 'muted small' }, '服務 API 金鑰給整合系統使用，不綁定個人登入（擁有者為建立它的管理員）。'),
-    h('button', { class: 'btn primary sm right', onclick: () => tokenDialog('建立服務 API 金鑰', '/admin/system/api-keys') }, icon('plus'), '建立金鑰')));
-  region(el, async () => card(null, tokenTable((await GET('/admin/system/api-keys')).items, '/admin/system/api-keys/'), null, { flush: true }));
-}
-function sysUpdate(el) {
-  region(el, async () => {
-    const r = await GET('/admin/system/update');
-    return card('線上更新', h('div', { style: 'display:grid;gap:12px' },
-      h('div', { class: 'kv' }, h('div', null, '目前版本'), h('div', { class: 'mono' }, r.current), h('div', null, '更新頻道'), h('div', null, r.channel),
-        h('div', null, '最新版本'), h('div', { class: 'mono' }, r.latest || r.version || '—'), h('div', null, '自動更新'), h('div', null, r.auto_update ? '開啟' : '關閉')),
-      r.error ? h('div', { class: 'notice' }, '無法檢查更新：' + r.error) : null,
-      r.notes ? h('pre', { class: 'code' }, r.notes) : null,
-      r.available ? h('div', { class: 'row' }, h('span', null, '有新版本可以安裝。'), can('admin') ? h('button', { class: 'btn primary', onclick: async () => {
-        if (await confirmBox('安裝更新', '下載並驗證簽章後會替換 meshportd 並重新啟動，期間所有連線會中斷數秒。', { label: '安裝並重新啟動' })) act(() => POST('/admin/system/update/install'), '更新已開始，服務將重新啟動');
-      } }, '安裝更新') : null) : (!r.error ? h('div', { class: 'muted' }, '已是最新版本。') : null)),
-    btn('重新檢查', () => S.reload()));
-  });
-}
-function sysSettings(el) {
-  region(el, async () => {
-    const r = await GET('/admin/system/settings');
-    const st = r.settings || {};
-    const ro = !can('admin');
-    const F = [
-      ['一般', [
-        { k: 'console_name', label: '控制台名稱', value: st.console_name },
-        { k: 'theme', label: '預設外觀', type: 'select', value: st.theme, options: [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']] },
-        { k: 'accent', label: '主題色', type: 'select', value: st.accent, options: [['jade', '玉綠'], ['terracotta', '赤陶'], ['rose', '玫瑰'], ['olive', '橄欖'], ['graphite', '石墨']] },
-        { k: 'language', label: '語言', type: 'select', value: st.language, options: [['zh-TW', '繁體中文'], ['ja', '日本語'], ['en', 'English']], hint: '目前控制台介面只提供繁體中文' },
-      ]],
-      ['裝置註冊與探索', [
-        { k: 'open_registration', label: '允許裝置用帳號密碼註冊', type: 'check', value: st.open_registration },
-        { k: 'registration_approval', label: '帳密註冊的審批方式', type: 'select', value: st.registration_approval, options: [['manual', '需要管理員核准'], ['auto', '自動核准']] },
-        { k: 'default_level', label: '新裝置的預設等級', type: 'select', value: st.default_level, options: Object.entries(L.level) },
-        { k: 'discovery_scope', label: '探索範圍', type: 'select', value: st.discovery_scope, options: [['all', '所有裝置'], ['group', '同群組'], ['user', '同擁有者']], hint: '管理級裝置不受限制' },
-        { k: 'device_token_hours', label: '裝置權杖有效時間（小時）', type: 'number', value: st.device_token_hours, min: 1 },
-      ]],
-      ['通訊', [
-        { k: 'relay_enabled', label: '允許伺服器中繼（訊息與檔案）', type: 'check', value: st.relay_enabled },
-        { k: 'relay_max_file_mb', label: '中繼檔案大小上限（MB）', type: 'number', value: st.relay_max_file_mb, min: 1 },
-        { k: 'message_retention_days', label: '中繼訊息保留天數', type: 'number', value: st.message_retention_days, min: 1 },
-        { k: 'file_retention_hours', label: '中繼檔案保留時數', type: 'number', value: st.file_retention_hours, min: 1 },
-      ]],
-      ['安全', [
-        { k: 'session_hours', label: '控制台登入有效時間（小時）', type: 'number', value: st.session_hours, min: 1 },
-        { k: 'abnormal_fail_limit', label: '每個 IP 10 分鐘內失敗幾次視為異常並暫時封鎖', type: 'number', value: st.abnormal_fail_limit, min: 1 },
-        { k: 'mfa_required', label: '要求控制台使用者啟用兩步驟驗證', type: 'check', value: st.mfa_required },
-      ]],
-      ['維運', [
-        { k: 'log_retention_days', label: '日誌保留天數', type: 'number', value: st.log_retention_days, min: 1 },
-        { k: 'backup_hour', label: '每日備份時間（UTC 小時，-1 停用）', type: 'number', value: st.backup_hour, min: -1, max: 23 },
-        { k: 'backup_keep', label: '保留備份份數', type: 'number', value: st.backup_keep, min: 1 },
-        { k: 'update_channel', label: '更新頻道', type: 'select', value: st.update_channel, options: [['stable', '穩定版'], ['beta', '測試版']] },
-        { k: 'auto_update', label: '自動安裝更新', type: 'check', value: st.auto_update },
-      ]],
-    ];
-    const inputs = {};
-    const sections = F.map(([title, fields]) => card(title, h('div', { class: 'grid2' }, fields.map((f) => {
-      let el;
-      if (f.type === 'check') {
-        el = h('input', { type: 'checkbox', checked: !!f.value, disabled: ro });
-        inputs[f.k] = el;
-        return h('label', { class: 'check', style: 'grid-column:1/-1' }, el, f.label);
-      }
-      if (f.type === 'select') { el = h('select', { class: 'input', disabled: ro }, f.options.map(([v, t]) => h('option', { value: v }, t))); el.value = f.value; }
-      else { el = h('input', { class: 'input', type: f.type || 'text', min: f.min, max: f.max, disabled: ro }); el.value = f.value === undefined ? '' : f.value; }
-      inputs[f.k] = el;
-      return h('label', { class: 'field' }, h('span', null, f.label), el, f.hint ? h('span', { class: 'hint' }, f.hint) : null);
-    }))));
-    const save = async () => {
-      const body = {};
-      for (const [, fields] of F) for (const f of fields) {
-        const el = inputs[f.k];
-        const v = f.type === 'check' ? el.checked : f.type === 'number' ? Number(el.value) : el.value;
-        if (v !== st[f.k]) body[f.k] = v;
-      }
-      if (!Object.keys(body).length) { toast('沒有變更'); return; }
-      const nst = await act(() => PATCH('/admin/system/settings', body), '設定已儲存');
-      if (nst) { S.settings = Object.assign({}, S.settings, nst); applyTheme(); }
+  // ---------------------------------------------------------------- formatting
+  const pad = (x) => (x < 10 ? '0' : '') + x;
+  const toDate = (v) => (v ? new Date(v) : null);
+  function fmtTime(v) { const d = toDate(v); return d ? pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : '—'; }
+  function fmtDate(v) { const d = toDate(v); return d ? d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) : '—'; }
+  function fmtFull(v) { const d = toDate(v); return d ? fmtDate(v) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : '—'; }
+  function fmtClock(v) { const d = toDate(v); return d ? pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) : ''; }
+  function minsAgo(v) { const d = toDate(v); return d ? Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)) : null; }
+  function ago(v) {
+    const s = S();
+    const m = minsAgo(v);
+    if (m == null) return '—';
+    return m <= 1 ? s.justNow : m < 60 ? F(s.minAgo, { n: m }) : m < 1440 ? F(s.hrAgo, { n: Math.round(m / 60) }) : F(s.dayAgo, { n: Math.round(m / 1440) });
+  }
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i && n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
+  }
+  function fmtRate(bps) {
+    const kb = (Number(bps) || 0) / 1000;
+    return kb >= 1000 ? (kb / 1000).toFixed(1) + ' MB/s' : Math.round(kb) + ' KB/s';
+  }
+  const mbps = (bps) => ((Number(bps) || 0) * 8) / 1e6;
+  const fmtMbps = (v) => (v >= 10 ? Math.round(v) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + ' Mbps';
+  function fmtDur(sec) {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : m + 'm';
+  }
+  function niceMax(v, floor) {
+    v = Math.max(v * 1.15, floor);
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    for (const k of [1, 2, 2.5, 5, 10]) if (k * p >= v) return k * p;
+    return 10 * p;
+  }
+  function shortUA(ua) {
+    ua = String(ua || '');
+    if (!ua) return '—';
+    const b = /Edg\/(\d+)/.exec(ua) ? 'Edge ' + /Edg\/(\d+)/.exec(ua)[1] : /Firefox\/(\d+)/.exec(ua) ? 'Firefox ' + /Firefox\/(\d+)/.exec(ua)[1]
+      : /Chrome\/(\d+)/.exec(ua) ? 'Chrome ' + /Chrome\/(\d+)/.exec(ua)[1] : /Version\/(\d+).*Safari/.exec(ua) ? 'Safari ' + /Version\/(\d+)/.exec(ua)[1] : '';
+    const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+    if (b) return os ? b + ' · ' + os : b;
+    return ua.split(' ')[0].slice(0, 40);
+  }
+  const axNum = (v) => (v >= 100 || v === 0 ? String(Math.round(v)) : v >= 10 ? String(Math.round(v)) : v.toFixed(1));
+  const items = (k) => (D[k] && D[k].items) || [];
+
+  // ---------------------------------------------------------------- preferences
+  function initPrefs() {
+    const l = pref('mp.lang');
+    ST.lang = l && DICT[l] ? l : 'zh';
+    ST.theme = pref('mp.theme') || null;
+  }
+  function applySettings() {
+    if (!pref('mp.lang')) ST.lang = LANG_IN[D.settings.language] || ST.lang;
+    if (!pref('mp.theme')) ST.theme = D.settings.theme === 'dark' || D.settings.theme === 'light' ? D.settings.theme : null;
+    document.title = (D.settings.console_name || 'Meshport') + ' · ' + S().consoleName;
+  }
+  function cycleLang() {
+    const next = { zh: 'ja', ja: 'en', en: 'zh' }[ST.lang] || 'zh';
+    pref('mp.lang', next);
+    set({ lang: next });
+    applySettings();
+  }
+  function toggleTheme() {
+    const next = dark() ? 'light' : 'dark';
+    pref('mp.theme', next);
+    set({ theme: next });
+  }
+
+  // ---------------------------------------------------------------- auth flow
+  function toLogin(msg) {
+    stopStream();
+    stopTimers();
+    D.me = null;
+    set({ view: 'auth', authMode: 'login', overlay: null, cf: null, au: Object.assign({}, ST.au, { err: msg || '', busy: false, needTotp: false, pw: '', totp: '' }) });
+  }
+  function toMFA() {
+    stopStream();
+    stopTimers();
+    set({ view: 'auth', authMode: 'mfa', overlay: null, cf: null, au: Object.assign({}, ST.au, { err: '', busy: false, mfa: null, totp: '' }) });
+  }
+  const setAu = (o) => set({ au: Object.assign({}, ST.au, o) });
+  async function submitLogin() {
+    const a = ST.au;
+    if (a.busy) return;
+    if (!a.user.trim() || !a.pw) { setAu({ err: S().needCreds }); return; }
+    setAu({ busy: true, err: '' });
+    try {
+      const r = await api('POST', '/auth/login', { username: a.user.trim(), password: a.pw, totp: a.needTotp ? a.totp.trim() : '' }, { noAuth: true });
+      setAu({ pw: '', totp: '', busy: false, needTotp: false });
+      await enterApp(r && r.mfa_setup_required);
+    } catch (e) {
+      if (e.code === 'mfa_required') setAu({ needTotp: true, busy: false, err: a.needTotp ? e.message : '' });
+      else setAu({ busy: false, err: e.message });
+    }
+  }
+  async function startMFA() {
+    try {
+      const r = await api('POST', '/auth/mfa/setup', {}, { noAuth: true });
+      setAu({ mfa: r, err: '' });
+    } catch (e) {
+      if (e.status === 401) toLogin(S().sessionsExpired); else setAu({ err: e.message });
+    }
+  }
+  async function submitMFA() {
+    const a = ST.au;
+    if (a.busy) return;
+    setAu({ busy: true, err: '' });
+    try {
+      await api('POST', '/auth/mfa/enable', { code: a.totp.trim() }, { noAuth: true });
+      setAu({ busy: false, mfa: null, totp: '' });
+      flash(S().tMfaOn);
+      await enterApp();
+    } catch (e) {
+      setAu({ busy: false, err: e.message });
+    }
+  }
+  async function logout() {
+    try { await api('POST', '/auth/logout', {}, { noAuth: true }); } catch (_) { /* already signed out */ }
+    toLogin(S().loggedOut);
+  }
+
+  function authVals(c) {
+    const s = S();
+    const a = ST.au;
+    const mode = ST.authMode;
+    const au = { isLogin: mode === 'login', isMfa: mode === 'mfa', isEnroll: mode === 'enroll', user: a.user, pw: a.pw, totp: a.totp, needTotp: a.needTotp, err: a.err, hasErr: !!a.err, busy: a.busy ? 'true' : 'false' };
+    au.setUser = (e) => setAu({ user: e.target.value });
+    au.setPw = (e) => setAu({ pw: e.target.value });
+    au.setTotp = (e) => setAu({ totp: e.target.value });
+    const row = (label, value) => ({ label, value, copy: () => copy(value) });
+    if (mode === 'login') {
+      Object.assign(au, { title: s.loginTitle, sub: s.loginSub, btn: a.busy ? s.loggingIn : s.loginBtn, submit: submitLogin });
+    } else if (mode === 'mfa') {
+      Object.assign(au, { title: s.mfaTitle, sub: s.mfaSub, mfaWaiting: !a.mfa, mfaStarted: !!a.mfa, startMfa: startMFA, submit: submitMFA,
+        rows: a.mfa ? [row(s.mfaSecret, a.mfa.secret), row(s.mfaUri, a.mfa.otpauth_uri)] : [] });
+    } else {
+      const tok = decodeURIComponent(location.hash.replace(/^#/, ''));
+      const srv = location.origin;
+      Object.assign(au, { title: s.enrollTitle, sub: s.enrollSub, err: tok ? '' : s.badLink, hasErr: !tok,
+        rows: tok ? [row(s.serverUrl, srv), row(s.enrollCode, tok), row(s.cliCmd, 'meshport setup --server ' + srv + ' --enroll ' + tok)] : [] });
+    }
+    return {
+      c, s, I, au, font: FONTS[ST.lang], langTag: LANG_TAGS[ST.lang], brand: D.settings.console_name || 'Meshport',
+      themeIcon: dark() ? I.sun : I.moon, cycleLang, toggleTheme, logout, hasToast: !!ST.toast, toast: ST.toast,
     };
-    return [ro ? h('div', { class: 'notice info' }, '只有管理員可以變更系統設定。') : null, ...sections,
-      ro ? null : h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: save }, '儲存設定'), h('button', { class: 'btn', onclick: () => S.reload() }, '還原'))];
-  });
-}
-function sysEndpoints(el) {
-  const f = filt('endpoints', { q: '' });
-  el.append(h('div', { class: 'toolbar' }, searchBox(f.q, '路徑或說明', (v) => { f.q = v; reload(); }),
-    h('a', { class: 'btn sm right', href: '/api/docs', target: '_blank', rel: 'noopener' }, icon('book'), 'API 文件'),
-    h('a', { class: 'btn sm', href: '/api/v1/openapi.json', target: '_blank', rel: 'noopener' }, 'OpenAPI 3.1')));
-  const reload = region(el, async () => {
-    const r = await GET('/admin/system/endpoints');
-    const q = f.q.toLowerCase();
-    const items = (r.items || []).filter((x) => !q || (x.path + ' ' + x.summary + ' ' + x.tag).toLowerCase().includes(q));
-    return card(`${items.length} 個端點`, table([
-      { t: '方法', f: (x) => pill(x.method, { GET: 'info', POST: 'ok', PATCH: 'warn', PUT: 'warn', DELETE: 'bad' }[x.method]) },
-      { t: '路徑', f: (x) => h('code', null, x.path) },
-      { t: '權限', f: (x) => pill({ public: '公開', device: '裝置', viewer: '檢視者', operator: '操作員', admin: '管理員', any: '裝置或檢視者', session: '登入使用者' }[x.auth] || x.auth) },
-      { t: '分類', f: (x) => x.tag },
-      { t: '說明', f: (x) => h('span', { class: 'small' }, x.summary) },
-    ], items), null, { flush: true });
-  });
-}
+  }
 
-// ======================================================================
-// start
-// ======================================================================
-if (location.pathname === '/enroll') showEnroll();
-else boot();
+  // ---------------------------------------------------------------- boot & routing
+  function route() {
+    const p = location.hash.replace(/^#\/?/, '').split('/')[0];
+    return PAGES.indexOf(p) >= 0 ? p : 'overview';
+  }
+  function go(p) {
+    return () => {
+      if (location.hash !== '#/' + p) location.hash = '#/' + p;
+      else set({ page: p, overlay: null, hov: null });
+    };
+  }
+  window.addEventListener('hashchange', () => {
+    if (ST.view !== 'admin') return;
+    const p = route();
+    if (p !== ST.page) { set({ page: p, overlay: null, hov: null, pageErr: '' }); loadPage(); }
+  });
+
+  async function boot() {
+    R = DC.mount(document.getElementById('app'));
+    initPrefs();
+    try {
+      await DC.load('/admin.tpl.html');
+    } catch (e) {
+      document.getElementById('app').textContent = 'Meshport console failed to load: ' + e.message;
+      return;
+    }
+    if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    if (location.pathname.replace(/\/+$/, '') === '/enroll') { set({ view: 'auth', authMode: 'enroll' }); return; }
+    await enterApp();
+  }
+  async function enterApp(mfaSetup) {
+    let me;
+    try {
+      me = await api('GET', '/auth/me', undefined, { noAuth: true });
+    } catch (e) {
+      if (e.status === 403 && e.code === 'mfa_required') toMFA(); else toLogin(e.status === 401 ? '' : e.message);
+      return;
+    }
+    D.me = me;
+    D.settings = me.settings || {};
+    applySettings();
+    if (mfaSetup) { toMFA(); return; }
+    set({ view: 'admin', page: route(), overlay: null, pageErr: '' });
+    startStream();
+    startTimers();
+    loadGlobal();
+    loadPage();
+  }
+
+  // ---------------------------------------------------------------- data loading
+  function pagePaths(p) {
+    switch (p) {
+      case 'overview': return ['overview', 'metrics/p2p'];
+      case 'devices': return ['devices', 'groups', 'users'];
+      case 'comms': return ['sessions'];
+      case 'frp': return ['frp/nodes', 'frp/clients', 'frp/mappings', 'devices'];
+      case 'access': return ['grants', 'levels', 'users', 'devices'];
+      case 'security': return ['security/logins', 'alerts', 'security/keys', 'security/mfa', 'security/tokens', 'security/acl', 'security/bans', 'users'];
+      case 'monitor': return ['metrics?range=' + ST.range, 'metrics/p2p', 'failures', 'logs?limit=200', 'alerts'];
+      case 'system': return ['system/status', 'system/versions', 'system/db', 'system/backups', 'system/webhooks', 'system/update', 'system/settings', 'system/endpoints', 'metrics?range=live']
+        .concat(isAdmin() ? ['system/api-keys'] : []);
+      default: return [];
+    }
+  }
+  const keyOf = (p) => p.split('?')[0];
+  let loadSeq = 0;
+  async function loadPage() {
+    const page = ST.page;
+    const seq = ++loadSeq;
+    const paths = pagePaths(page);
+    const res = await Promise.allSettled(paths.map((p) => GET(p)));
+    if (seq !== loadSeq || ST.page !== page || ST.view !== 'admin') return;
+    let err = '';
+    res.forEach((r, i) => {
+      const k = keyOf(paths[i]);
+      if (r.status === 'fulfilled') D[k] = r.value;
+      else if (r.reason && r.reason.status !== 401) err = err || r.reason.message;
+    });
+    if (page === 'monitor' && D.logs) logs = (D.logs.items || []).slice();
+    if (D['system/settings']) D.settings = Object.assign({}, D.settings, D['system/settings'].settings);
+    if (D['system/status']) { D.status = D['system/status']; LIVE.statusAt = Date.now(); }
+    if (D['system/update']) D.update = D['system/update'];
+    if (D.overview && page === 'overview') seedRing(D.overview.series);
+    if (ST.overlay === 'drawer' && ST.drawerId) loadDevice(ST.drawerId);
+    set({ pageErr: err });
+  }
+  async function loadGlobal() {
+    const [ov, st, up] = await Promise.allSettled([GET('overview'), GET('system/status'), D.update ? Promise.resolve(D.update) : GET('system/update')]);
+    if (ov.status === 'fulfilled') { D.overview = ov.value; seedRing(ov.value.series); }
+    if (st.status === 'fulfilled') { D.status = st.value; LIVE.statusAt = Date.now(); }
+    if (up.status === 'fulfilled') D.update = up.value;
+    render();
+  }
+  async function loadDevice(id) {
+    try {
+      D.dev[id] = await GET('devices/' + encodeURIComponent(id));
+      render();
+    } catch (e) {
+      if (e.status === 404) set({ overlay: null, drawerId: null });
+    }
+  }
+  let reloadT = 0;
+  function reloadSoon(ms) {
+    clearTimeout(reloadT);
+    reloadT = setTimeout(() => { loadPage(); if (ST.page !== 'overview') loadGlobal(); }, ms == null ? 900 : ms);
+  }
+  function seedRing(series) {
+    if (!series) return;
+    for (const k of ['p2p_bps', 'relay_bps']) {
+      if (LIVE.ring[k].length >= 2 || !series[k]) continue;
+      LIVE.ring[k] = series[k].slice(-30).map((p) => p.v);
+    }
+  }
+  let timers = [];
+  function startTimers() {
+    stopTimers();
+    timers.push(setInterval(() => { if (!document.hidden) loadPage(); }, 15000));
+    timers.push(setInterval(() => { if (!document.hidden) loadGlobal(); }, 60000));
+    timers.push(setInterval(() => { if (!LIVE.wsOn) render(); }, 2000));
+  }
+  function stopTimers() { timers.forEach(clearInterval); timers = []; }
+
+  // ---------------------------------------------------------------- live stream
+  const PAGE_EVENTS = {
+    overview: ['device.', 'grant.', 'alert.', 'frp.', 'session.'],
+    devices: ['device.', 'grant.'], comms: ['session.'], frp: ['frp.', 'device.online', 'device.offline'],
+    access: ['grant.', 'device.updated', 'user.'], security: ['alert.', 'security.', 'device.', 'user.'],
+    system: ['backup.', 'system.'], monitor: ['failure', 'alert.'],
+  };
+  function startStream() {
+    stopStream();
+    let ws;
+    try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v1/admin/stream'); } catch (_) { return; }
+    LIVE.ws = ws;
+    ws.onopen = () => { LIVE.wsOn = true; LIVE.retry = 0; render(); };
+    ws.onclose = () => {
+      LIVE.wsOn = false;
+      render();
+      if (LIVE.ws !== ws || ST.view !== 'admin') return;
+      LIVE.retry = Math.min(LIVE.retry + 1, 6);
+      setTimeout(() => { if (LIVE.ws === ws && ST.view === 'admin') startStream(); }, 1000 * Math.pow(2, LIVE.retry - 1));
+    };
+    ws.onmessage = (m) => {
+      let ev;
+      try { ev = JSON.parse(m.data); } catch (_) { return; }
+      onEvent(ev);
+    };
+  }
+  function stopStream() {
+    if (LIVE.ws) { const w = LIVE.ws; LIVE.ws = null; try { w.close(); } catch (_) { /* closed */ } }
+    LIVE.wsOn = false;
+  }
+  function onEvent(ev) {
+    const t = ev.type || '';
+    if (t === 'metrics.tick') {
+      const d = ev.data || {};
+      LIVE.last = d;
+      for (const k of ['p2p_bps', 'relay_bps']) {
+        const r = LIVE.ring[k];
+        r.push(Number(d[k]) || 0);
+        while (r.length > 30) r.shift();
+      }
+      render();
+      return;
+    }
+    if (t === 'log') {
+      if (!ST.paused && ev.data) {
+        logs.unshift(ev.data);
+        if (logs.length > 400) logs.length = 400;
+        if (ST.page === 'monitor') render();
+      }
+      return;
+    }
+    const interest = PAGE_EVENTS[ST.page] || [];
+    if (interest.some((p) => t.indexOf(p) === 0)) reloadSoon();
+    else if (/^(device\.|grant\.|alert\.)/.test(t)) { clearTimeout(LIVE.gt); LIVE.gt = setTimeout(loadGlobal, 900); }
+  }
+
+  // ---------------------------------------------------------------- dialogs
+  function confirmBox(title, body, ok, fn) { set({ cf: { title, body, ok, fn } }); }
+  function closeOverlay() { set({ overlay: null, fm: null, mf: null }); }
+
+  // Generic form sheet. cfg: {title, desc, fields:[{k,label,type,…}], values, saveLabel, onSave(v) -> false keeps it open, extra:[{label, go, fg}], noCancel}
+  function openForm(cfg) {
+    set({ overlay: 'form', fm: { cfg, v: Object.assign({}, cfg.values || {}), err: '', busy: false } });
+  }
+  function infoSheet(title, desc, rows) {
+    openForm({ title, desc, noCancel: true, saveLabel: S().close, fields: rows.map((r) => ({ type: 'info', label: r[0], value: r[1], full: true, copy: r[2] !== false, hint: r[3] })) });
+  }
+  const setFm = (o) => set({ fm: Object.assign({}, ST.fm, o) });
+  function setField(k, val) { setFm({ v: Object.assign({}, ST.fm.v, { [k]: val }) }); }
+  function formVals(c, seg, sw) {
+    const fm = ST.fm;
+    if (!fm) return { fields: [] };
+    const cfg = fm.cfg;
+    const s = S();
+    const v = fm.v;
+    const fields = cfg.fields.filter((f) => !f.when || f.when(v)).map((f) => {
+      const b = { label: f.label, span: f.full ? '1 / -1' : 'auto', hint: f.hint || '', hasHint: !!f.hint };
+      const val = f.type === 'info' ? f.value : v[f.k];
+      if (f.type === 'select') return Object.assign(b, { isSelect: true, value: val == null ? '' : String(val), opts: f.opts, set: (e) => setField(f.k, e.target.value) });
+      if (f.type === 'seg') return Object.assign(b, { isSeg: true, seg: seg(f.opts.map((o) => [o.v, o.label]), val, (x) => setField(f.k, x)) });
+      if (f.type === 'switch') return Object.assign(b, { isSwitch: true, sw: sw(!!val, () => setField(f.k, !val), f.label) });
+      if (f.type === 'area') return Object.assign(b, { isArea: true, value: val == null ? '' : String(val), ph: f.ph || '', set: (e) => setField(f.k, e.target.value) });
+      if (f.type === 'info') return Object.assign(b, { isInfo: true, value: String(val == null ? '' : val), copy: f.copy ? () => copy(String(val)) : null });
+      return Object.assign(b, { isText: true, type: f.type || 'text', value: val == null ? '' : String(val), ph: f.ph || '', ac: f.ac || 'off',
+        font: f.mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'inherit', set: (e) => setField(f.k, e.target.value) });
+    });
+    return {
+      title: cfg.title, desc: cfg.desc || '', hasDesc: !!cfg.desc, fields, err: fm.err, hasErr: !!fm.err,
+      busy: fm.busy ? 'true' : 'false', hasCancel: !cfg.noCancel, hasSave: true, saveLabel: cfg.saveLabel || s.save,
+      saveBg: cfg.danger ? c.critBg : c.accentBg,
+      extra: (cfg.extra || []).map((x) => ({ label: x.label, fg: x.danger ? c.crit : c.text, go: x.go })),
+      save: async () => {
+        if (!ST.fm || ST.fm.cfg !== cfg || ST.fm.busy) return;
+        if (!cfg.onSave) { closeOverlay(); return; }
+        setFm({ busy: true, err: '' });
+        try {
+          const keep = await cfg.onSave(Object.assign({}, ST.fm.v));
+          if (keep !== false && ST.fm && ST.fm.cfg === cfg) closeOverlay();
+          else if (ST.fm && ST.fm.cfg === cfg) setFm({ busy: false });
+        } catch (e) {
+          if (ST.fm && ST.fm.cfg === cfg) setFm({ busy: false, err: e.message });
+        }
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------- forms per feature
+  const num = (x, d) => { const n = parseInt(String(x).trim(), 10); return isNaN(n) ? d : n; };
+  const levelOpts = () => { const s = S(); return [{ v: 'guest', label: s.lvGuest }, { v: 'member', label: s.lvMember }, { v: 'admin', label: s.lvAdmin }]; };
+  const roleOpts = () => { const s = S(); return [{ v: 'viewer', label: s.roleViewer }, { v: 'operator', label: s.roleOperator }, { v: 'admin', label: s.roleAdmin }]; };
+  const durOpts = () => { const s = S(); return [{ v: '24h', label: s.d24h }, { v: '7d', label: s.d7 }, { v: '30d', label: s.d30 }, { v: '90d', label: s.d90 }, { v: 'perm', label: s.dPerm }]; };
+  const scopeOpts = [{ v: 'read', label: 'read' }, { v: 'write', label: 'write' }, { v: 'admin', label: 'admin' }];
+  const groupOpts = (extraNew) => {
+    const s = S();
+    const o = [{ v: '', label: s.none }].concat(items('groups').map((g) => ({ v: g.id, label: g.name })));
+    if (extraNew) o.push({ v: '__new', label: '＋ ' + s.groupNew });
+    return o;
+  };
+  async function ensureGroup(v) {
+    if (v.group !== '__new') return v.group || '';
+    const name = String(v.groupNew || '').trim();
+    if (!name) return '';
+    const exists = items('groups').find((g) => g.name === name);
+    if (exists) return exists.id;
+    const g = await api('POST', '/admin/groups', { name });
+    return g.id;
+  }
+
+  async function enrollForm() {
+    const s = S();
+    if (!D.groups) { try { D.groups = await GET('groups'); } catch (_) { /* optional */ } }
+    openForm({
+      title: s.fEnrollTitle, desc: s.fEnrollDesc, saveLabel: s.create,
+      values: { note: '', level: D.settings.default_level || 'guest', group: '', uses: '1', ttl: '24', auto: true },
+      fields: [
+        { k: 'note', label: s.fNote, full: true, ph: 'Pixel 9 · lin.yuchen' },
+        { k: 'level', label: s.fLevel, type: 'seg', opts: levelOpts(), full: true },
+        { k: 'group', label: s.fGroup, type: 'select', opts: groupOpts(true) },
+        { k: 'groupNew', label: s.groupNew, when: (v) => v.group === '__new' },
+        { k: 'uses', label: s.fUses, type: 'number' },
+        { k: 'ttl', label: s.fTtl, type: 'number' },
+        { k: 'auto', label: s.fAutoApprove, hint: s.fAutoApproveHint, type: 'switch', full: true },
+      ],
+      onSave: async (v) => {
+        const group = await ensureGroup(v);
+        const r = await api('POST', '/admin/enroll-tokens', { note: v.note.trim(), level: v.level, group, uses: num(v.uses, 1), ttl_hours: num(v.ttl, 24), auto_approve: !!v.auto });
+        const srv = String((D.status && D.status.public_url) || location.origin).replace(/\/+$/, '');
+        setTimeout(() => infoSheet(s.fEnrollTitle, s.enrollOnce, [
+          [s.enrollCode, r.token], [s.enrollLink, r.enroll_url || srv + '/enroll#' + r.token], [s.serverUrl, srv],
+          [s.cliCmd, 'meshport setup --server ' + srv + ' --enroll ' + r.token],
+        ]), 0);
+        return true;
+      },
+    });
+  }
+
+  function deviceEditForm(d) {
+    const s = S();
+    const kinds = ['laptop', 'phone', 'tablet', 'nas', 'server', 'monitor', 'chip'];
+    const kl = { laptop: s.kLaptop, phone: s.kPhone, tablet: s.kTablet, nas: s.kNas, server: s.kServer, monitor: s.kMonitor, chip: s.kChip };
+    openForm({
+      title: s.editDevice, saveLabel: s.save,
+      values: { name: d.name, kind: d.kind, group: d.group_id || '', user: d.user_id || '' },
+      fields: [
+        { k: 'name', label: s.fName, full: true },
+        { k: 'kind', label: s.fKind, type: 'select', opts: kinds.map((k) => ({ v: k, label: kl[k] })) },
+        { k: 'user', label: s.fUser, type: 'select', opts: [{ v: '', label: s.none }].concat(items('users').map((u) => ({ v: u.id, label: u.username }))) },
+        { k: 'group', label: s.fGroup, type: 'select', opts: groupOpts(true) },
+        { k: 'groupNew', label: s.groupNew, hint: s.groupNewHint, when: (v) => v.group === '__new' },
+      ],
+      onSave: async (v) => {
+        const group = await ensureGroup(v);
+        await api('PATCH', '/admin/devices/' + d.id, { name: v.name.trim(), kind: v.kind, group, user: v.user });
+        flash(F(s.tMapSaved, { name: v.name.trim() }));
+        reloadSoon(100);
+        if (ST.drawerId) loadDevice(ST.drawerId);
+      },
+    });
+  }
+
+  function commandForm(d) {
+    const s = S();
+    const cmds = [['ping', s.cmdPing], ['reload-frpc', s.cmdReload], ['refresh-peers', s.cmdPeers], ['collect-logs', s.cmdLogs], ['rotate-key', s.cmdRotate], ['restart-client', s.cmdRestart], ['disconnect', s.cmdDisconnect]];
+    openForm({
+      title: F(s.cmdTitle, { name: d.name }), saveLabel: s.cmdRun, values: { name: 'ping', lines: '200' },
+      fields: [
+        { k: 'name', label: s.fCmd, type: 'select', opts: cmds.map((x) => ({ v: x[0], label: x[1] + ' · ' + x[0] })), full: true },
+        { k: 'lines', label: s.fArgs, hint: s.fArgsHint, type: 'number', when: (v) => v.name === 'collect-logs' },
+      ],
+      onSave: async (v) => {
+        const body = { name: v.name, timeout_s: 20 };
+        if (v.name === 'collect-logs') body.args = { lines: String(num(v.lines, 200)) };
+        const r = await api('POST', '/admin/devices/' + d.id + '/command', body);
+        setTimeout(() => infoSheet(s.cmdResult, d.name + ' · ' + v.name + ' · ' + (r && r.ok ? s.cmdOk : s.cmdFail), [[s.cmdResult, (r && r.output) || '—']]), 0);
+      },
+    });
+  }
+
+  function grantForm() {
+    const s = S();
+    const devs = items('devices').filter((d) => d.status === 'active');
+    if (!devs.length) { flash(s.noMatch); return; }
+    openForm({
+      title: s.grantTitle, saveLabel: s.approve, values: { target: devs[0].id, level: 'member', duration: '7d', reason: '' },
+      fields: [
+        { k: 'target', label: s.fTarget, type: 'select', opts: devs.map((d) => ({ v: d.id, label: d.name + ' · ' + d.did })), full: true },
+        { k: 'level', label: s.fLevel, type: 'seg', opts: levelOpts(), full: true },
+        { k: 'duration', label: s.fDuration, type: 'seg', opts: durOpts(), full: true },
+        { k: 'reason', label: s.fReason, full: true },
+      ],
+      onSave: async (v) => {
+        await api('POST', '/admin/grants', { target: v.target, level: v.level, duration: v.duration, reason: v.reason.trim() });
+        const d = devs.find((x) => x.id === v.target);
+        flash(F(s.tGrantCreated, { target: d ? d.name : v.target, level: s['lv' + v.level.charAt(0).toUpperCase() + v.level.slice(1)] }));
+        reloadSoon(100);
+      },
+    });
+  }
+
+  function userForm(u) {
+    const s = S();
+    if (!u) {
+      openForm({
+        title: s.userNew, saveLabel: s.create, values: { username: '', display: '', email: '', role: 'viewer', password: '' },
+        fields: [
+          { k: 'username', label: s.username, ac: 'off' }, { k: 'display', label: s.fDisplay },
+          { k: 'role', label: s.fRole, type: 'seg', opts: roleOpts(), full: true },
+          { k: 'email', label: s.fEmail, type: 'email' }, { k: 'password', label: s.password, type: 'password', ph: s.fPwOptional, ac: 'new-password' },
+        ],
+        onSave: async (v) => {
+          const body = { username: v.username.trim(), role: v.role, display_name: v.display.trim(), email: v.email.trim() };
+          if (v.password) body.password = v.password;
+          const r = await api('POST', '/admin/users', body);
+          reloadSoon(100);
+          if (r && r.password) setTimeout(() => infoSheet(F(s.pwGenerated, { name: body.username }), s.pwGeneratedDesc, [[s.username, body.username], [s.password, r.password]]), 0);
+          else flash(F(s.pwGenerated, { name: body.username }));
+        },
+      });
+      return;
+    }
+    const me = D.me && D.me.user && D.me.user.id === u.id;
+    const extra = [];
+    if (u.mfa_enabled) extra.push({ label: s.resetMfa, go: () => { closeOverlay(); confirmBox(s.resetMfa + '?', u.username, s.resetMfa, () => act(() => api('POST', '/admin/users/' + u.id + '/reset-mfa', {}), F(s.tMfaReset, { name: u.username }))); } });
+    if (!me) extra.push({ label: s.deleteUser, danger: true, go: () => { closeOverlay(); confirmBox(s.cfDelUser, F(s.cfDelUserBody, { name: u.username }), s.delete, () => act(() => api('DELETE', '/admin/users/' + u.id), F(s.tDeleted, { name: u.username }))); } });
+    openForm({
+      title: s.userEdit + ' · ' + u.username, saveLabel: s.save, extra,
+      values: { display: u.display_name || '', email: u.email || '', role: u.role, password: '', disabled: !!u.disabled },
+      fields: [
+        { k: 'display', label: s.fDisplay }, { k: 'email', label: s.fEmail, type: 'email' },
+        { k: 'role', label: s.fRole, type: 'seg', opts: roleOpts(), full: true },
+        { k: 'password', label: s.fNewPassword, type: 'password', hint: s.fNewPwHint, ac: 'new-password', full: true },
+        { k: 'disabled', label: s.fDisabled, hint: s.fDisabledHint, type: 'switch', full: true, when: () => !me },
+      ],
+      onSave: async (v) => {
+        const body = { display_name: v.display.trim(), email: v.email.trim(), role: v.role };
+        if (!me) body.disabled = !!v.disabled;
+        if (v.password) body.password = v.password;
+        await api('PATCH', '/admin/users/' + u.id, body);
+        flash(F(s.tUserSaved, { name: u.username }));
+        reloadSoon(100);
+      },
+    });
+  }
+
+  function tokenForm(service) {
+    const s = S();
+    openForm({
+      title: service ? s.keyNew : s.tokenNew, saveLabel: s.create, values: { name: '', scope: 'read', ttl: service ? '0' : '90' },
+      fields: [
+        { k: 'name', label: s.fName, full: true, ph: service ? 'metrics-exporter' : 'ci-deploy' },
+        { k: 'scope', label: s.fScopes, type: 'seg', opts: scopeOpts },
+        { k: 'ttl', label: s.fTtlDays, hint: s.fTtlDaysHint, type: 'number' },
+      ],
+      onSave: async (v) => {
+        const name = v.name.trim();
+        const r = await api('POST', service ? '/admin/system/api-keys' : '/admin/security/tokens', { name, scopes: [v.scope], ttl_days: num(v.ttl, 0) });
+        reloadSoon(100);
+        setTimeout(() => infoSheet(F(s.tokenCreated, { name }), s.tokenOnce, [[name, r.token]]), 0);
+      },
+    });
+  }
+
+  function hookForm() {
+    const s = S();
+    const types = (D['system/webhooks'] && D['system/webhooks'].event_types) || [];
+    openForm({
+      title: s.hookNew, saveLabel: s.create, values: { url: 'https://', name: '', events: 'alert.*' },
+      fields: [
+        { k: 'url', label: s.fUrl, full: true, mono: true },
+        { k: 'name', label: s.fName },
+        { k: 'events', label: s.fEvents, hint: s.fEventsHint + (types.length ? ' · ' + types.slice(0, 8).join(', ') + '…' : ''), mono: true },
+      ],
+      onSave: async (v) => {
+        const events = v.events.split(',').map((x) => x.trim()).filter(Boolean);
+        const r = await api('POST', '/admin/system/webhooks', { url: v.url.trim(), name: v.name.trim(), events, enabled: true });
+        reloadSoon(100);
+        setTimeout(() => infoSheet(s.hookCreated, s.hookSecretDesc, [[s.signSecret, r.secret]]), 0);
+      },
+    });
+  }
+
+  function nodeForm(n) {
+    const s = S();
+    const v0 = n ? {
+      name: n.name, region: n.region || '', public_addr: n.public_addr, bind_port: String(n.bind_port || 7000), vhost_http_port: String(n.vhost_http_port || ''),
+      vhost_https_port: String(n.vhost_https_port || ''), subdomain_host: n.subdomain_host || '', allow_ports: n.allow_ports || '', dashboard_addr: n.dashboard_addr || '',
+      dashboard_user: n.dashboard_user || '', dashboard_password: '', managed: !!n.managed, enabled: n.enabled !== false,
+    } : { name: '', region: '', public_addr: '', bind_port: '7000', vhost_http_port: '80', vhost_https_port: '443', subdomain_host: '', allow_ports: '', dashboard_addr: '', dashboard_user: '', dashboard_password: '', managed: true, enabled: true };
+    openForm({
+      title: n ? F(s.nodeEdit, { name: n.name }) : s.nodeNew, saveLabel: n ? s.save : s.create, values: v0,
+      fields: [
+        { k: 'name', label: s.fName, ph: 'frps-taipei' }, { k: 'region', label: s.fRegion, ph: 'tpe' },
+        { k: 'public_addr', label: s.fPublicAddr, full: true, mono: true, ph: 'frp.example.com' },
+        { k: 'bind_port', label: s.fBindPort, type: 'number' }, { k: 'subdomain_host', label: s.fSubHost, mono: true },
+        { k: 'vhost_http_port', label: s.fHttpPort, type: 'number' }, { k: 'vhost_https_port', label: s.fHttpsPort, type: 'number' },
+        { k: 'allow_ports', label: s.fAllowPorts, hint: s.fAllowPortsHint, mono: true, full: true },
+        { k: 'managed', label: s.fManaged, hint: s.fManagedHint, type: 'switch', full: true },
+        { k: 'dashboard_addr', label: s.fDashAddr, hint: s.fDashAddrHint, mono: true, full: true, when: (v) => !v.managed },
+        { k: 'dashboard_user', label: s.fDashUser, when: (v) => !v.managed }, { k: 'dashboard_password', label: s.fDashPw, type: 'password', ac: 'new-password', when: (v) => !v.managed },
+        { k: 'enabled', label: s.fEnabled, type: 'switch', full: true },
+      ],
+      onSave: async (v) => {
+        const body = {
+          name: v.name.trim(), region: v.region.trim(), public_addr: v.public_addr.trim(), bind_port: num(v.bind_port, 7000),
+          vhost_http_port: num(v.vhost_http_port, 0), vhost_https_port: num(v.vhost_https_port, 0), subdomain_host: v.subdomain_host.trim(),
+          allow_ports: v.allow_ports.trim(), managed: !!v.managed, enabled: !!v.enabled,
+        };
+        if (!v.managed) { body.dashboard_addr = v.dashboard_addr.trim(); body.dashboard_user = v.dashboard_user.trim(); if (v.dashboard_password) body.dashboard_password = v.dashboard_password; }
+        const r = n ? await api('PATCH', '/admin/frp/nodes/' + n.id, body) : await api('POST', '/admin/frp/nodes', body);
+        reloadSoon(100);
+        flash(F(s.tNodeSaved, { name: body.name }));
+        if (!n && r && r.frps_toml && !body.managed) setTimeout(() => infoSheet(F(s.nodeToml, { name: body.name }), s.nodeTomlDesc, [['frps.toml', r.frps_toml]]), 0);
+      },
+    });
+  }
+
+  function settingsForm() {
+    const s = S();
+    const st = D.settings;
+    openForm({
+      title: s.settingsTitle, saveLabel: s.save,
+      values: {
+        console_name: st.console_name || '', registration_approval: st.registration_approval || 'manual', default_level: st.default_level || 'guest',
+        discovery_scope: st.discovery_scope || 'all', relay_enabled: st.relay_enabled !== false, relay_max_file_mb: String(st.relay_max_file_mb || ''),
+        message_retention_days: String(st.message_retention_days || ''), file_retention_hours: String(st.file_retention_hours || ''),
+        backup_hour: String(st.backup_hour == null ? '' : st.backup_hour), backup_keep: String(st.backup_keep || ''), session_hours: String(st.session_hours || ''),
+        device_token_hours: String(st.device_token_hours || ''), abnormal_fail_limit: String(st.abnormal_fail_limit || ''), language: st.language || 'zh-TW',
+      },
+      fields: [
+        { k: 'console_name', label: s.setConsoleName, full: true },
+        { k: 'registration_approval', label: s.setApproval, type: 'seg', opts: [{ v: 'manual', label: s.apprManual }, { v: 'auto', label: s.apprAuto }] },
+        { k: 'default_level', label: s.setDefaultLevel, type: 'seg', opts: levelOpts() },
+        { k: 'discovery_scope', label: s.setDiscovery, type: 'seg', opts: [{ v: 'all', label: s.discAll }, { v: 'group', label: s.discGroup }, { v: 'user', label: s.discUser }] },
+        { k: 'language', label: s.setLang, type: 'seg', opts: [{ v: 'zh-TW', label: '繁中' }, { v: 'ja', label: '日本語' }, { v: 'en', label: 'English' }] },
+        { k: 'relay_enabled', label: s.setRelay, hint: s.setRelayHint, type: 'switch', full: true },
+        { k: 'relay_max_file_mb', label: s.setRelayMax, type: 'number' }, { k: 'message_retention_days', label: s.setMsgRet, type: 'number' },
+        { k: 'file_retention_hours', label: s.setFileRet, type: 'number' }, { k: 'abnormal_fail_limit', label: s.setFailLimit, type: 'number' },
+        { k: 'backup_hour', label: s.setBackupHour, type: 'number' }, { k: 'backup_keep', label: s.setBackupKeep, type: 'number' },
+        { k: 'session_hours', label: s.setSessionH, type: 'number' }, { k: 'device_token_hours', label: s.setDeviceTokH, type: 'number' },
+      ],
+      onSave: async (v) => {
+        const numeric = ['relay_max_file_mb', 'message_retention_days', 'file_retention_hours', 'backup_hour', 'backup_keep', 'session_hours', 'device_token_hours', 'abnormal_fail_limit'];
+        const patch = {};
+        for (const k of Object.keys(v)) {
+          let val = v[k];
+          if (numeric.indexOf(k) >= 0) { val = num(val, null); if (val == null) continue; }
+          if (typeof val === 'string') val = val.trim();
+          if (val !== st[k]) patch[k] = val;
+        }
+        if (Object.keys(patch).length) await saveSettings(patch);
+      },
+    });
+  }
+  async function saveSettings(patch, msg) {
+    const r = await api('PATCH', '/admin/system/settings', patch);
+    const ns = (r && r.settings) || Object.assign({}, D.settings, patch);
+    D.settings = Object.assign({}, D.settings, ns);
+    if (D['system/settings']) D['system/settings'].settings = D.settings;
+    if (D.me) D.me.settings = Object.assign({}, D.me.settings, ns);
+    applySettings();
+    flash(msg || S().tSettings);
+    render();
+    return r;
+  }
+  const quickSetting = (patch) => { if (!isAdmin()) { flash(S().adminOnly); return; } saveSettings(patch).catch((e) => flash(e.message)); };
+
+  function accountSheet() {
+    const s = S();
+    const u = (D.me && D.me.user) || {};
+    const extra = [{ label: s.changePw, go: passwordForm }];
+    extra.push(u.mfa_enabled ? { label: s.disableMfa, go: mfaDisableForm } : { label: s.enableMfa, go: mfaEnableForm });
+    extra.push({ label: s.logout, danger: true, go: () => { closeOverlay(); logout(); } });
+    openForm({
+      title: s.accTitle, noCancel: true, saveLabel: s.close, extra,
+      fields: [
+        { type: 'info', label: s.accUser, value: u.username || '—' },
+        { type: 'info', label: s.accRole, value: roleLabel(role()) },
+        { type: 'info', label: s.accMfa, value: u.mfa_enabled ? s.mfaOn + ' · TOTP' : s.mfaOff, full: true },
+      ],
+    });
+  }
+  function passwordForm() {
+    const s = S();
+    openForm({
+      title: s.changePw, saveLabel: s.save, values: { current: '', next: '' },
+      fields: [{ k: 'current', label: s.fCurPw, type: 'password', ac: 'current-password', full: true }, { k: 'next', label: s.fNewPw, type: 'password', ac: 'new-password', full: true }],
+      onSave: async (v) => { await api('POST', '/auth/password', { current: v.current, new: v.next }); flash(s.tPwChanged); },
+    });
+  }
+  async function mfaEnableForm() {
+    const s = S();
+    let r;
+    try { r = await api('POST', '/auth/mfa/setup', {}); } catch (e) { flash(e.message); return; }
+    openForm({
+      title: s.enableMfa, desc: s.mfaSetupDesc, saveLabel: s.mfaEnable, values: { code: '' },
+      fields: [
+        { type: 'info', label: s.mfaSecret, value: r.secret, copy: true, full: true },
+        { type: 'info', label: s.mfaUri, value: r.otpauth_uri, copy: true, full: true },
+        { k: 'code', label: s.totpCode, mono: true, ac: 'one-time-code', full: true },
+      ],
+      onSave: async (v) => { await api('POST', '/auth/mfa/enable', { code: v.code.trim() }); D.me.user.mfa_enabled = true; flash(s.tMfaOn); },
+    });
+  }
+  function mfaDisableForm() {
+    const s = S();
+    openForm({
+      title: s.disableMfa, desc: s.mfaDisableDesc, saveLabel: s.disableMfa, danger: true, values: { code: '' },
+      fields: [{ k: 'code', label: s.totpCode, mono: true, ac: 'one-time-code', full: true }],
+      onSave: async (v) => { await api('POST', '/auth/mfa/disable', { code: v.code.trim() }); D.me.user.mfa_enabled = false; flash(s.tMfaOff); },
+    });
+  }
+  function roleLabel(r) { const s = S(); return { admin: s.roleAdmin, operator: s.roleOperator, viewer: s.roleViewer }[r] || r; }
+
+  async function exportAudit() {
+    const s = S();
+    try {
+      const r = await GET('audit?limit=1000');
+      const rows = (r.items || []).map((a) => [fmtFull(a.at), a.actor, a.actor_type, a.action, a.target_type, a.target_id, a.ip, JSON.stringify(a.detail || {})]);
+      const esc = (x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
+      const csv = '﻿' + [['time', 'actor', 'actor_type', 'action', 'target_type', 'target_id', 'ip', 'detail']].concat(rows).map((row) => row.map(esc).join(',')).join('\r\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meshport-audit-' + fmtDate(new Date()) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      flash(F(s.tExportDone, { n: rows.length }));
+    } catch (e) { flash(e.message); }
+  }
+
+  // ---------------------------------------------------------------- view model
+  function adminVals(c) {
+    const s0 = S();
+    const s = Object.create(s0);
+    const set2 = (o) => set(o);
+    const ST2 = { ok: { stFg: c.ok, stBg: c.okSoft }, warn: { stFg: c.warn, stBg: c.warnSoft }, crit: { stFg: c.crit, stBg: c.critSoft }, off: { stFg: c.muted, stBg: c.tile }, info: { stFg: c.accent, stBg: c.accentSoft } };
+    const st = (k, label) => Object.assign({ stLabel: label }, ST2[k]);
+    const lvLabel = { guest: s.lvGuest, member: s.lvMember, admin: s.lvAdmin };
+    const lv = (l) => {
+      const m = { guest: [c.muted, c.tile], member: [c.accent, c.accentSoft], admin: ['#FFFFFF', c.accentBg] }[l] || [c.muted, c.tile];
+      return { lvFg: m[0], lvBg: m[1], lvLabel: lvLabel[l] || l };
+    };
+    const roleLv = (r) => Object.assign(lv({ admin: 'admin', operator: 'member', viewer: 'guest' }[r] || 'guest'), { lvLabel: roleLabel(r) });
+    const seg = (opts, cur, pick) => opts.map((o) => {
+      const on = o[0] === cur;
+      return { label: o[1], pressed: on ? 'true' : 'false', bg: on ? c.segOn : 'transparent', fg: on ? c.text : c.muted, sh: on ? c.segShadow : 'none', pick: () => pick(o[0]) };
+    });
+    const sw = (on, toggle, label) => ({ checked: on ? 'true' : 'false', toggle, label, swBg: on ? c.accentBg : c.swOff, knobX: on ? 18 : 0 });
+    const sevMap = {
+      crit: { fg: c.crit, bg: c.critSoft, icon: I.critical, sevLabel: s.sevCrit },
+      warn: { fg: c.warn, bg: c.warnSoft, icon: I.alert, sevLabel: s.sevWarn },
+      info: { fg: c.accent, bg: c.accentSoft, icon: I.info, sevLabel: s.sevInfo },
+    };
+    const kindIcon = (k) => I[{ laptop: 'laptop', nas: 'nas', phone: 'phone', monitor: 'monitor', chip: 'chip', tablet: 'tablet', server: 'server' }[k] || 'monitor'];
+    const ql = ST.q.trim().toLowerCase();
+    const has = (str) => !ql || String(str).toLowerCase().indexOf(ql) >= 0;
+    const page = ST.page;
+    const canOp = can('operator');
+    const admin = isAdmin();
+    const ov = D.overview || {};
+    const go2 = (p) => go(p);
+
+    // ---------- shared device lookups
+    const devList = items('devices');
+    const devById = {};
+    devList.forEach((d) => { devById[d.id] = d; });
+
+    // ---------- charts (design's chart model)
+    const hv = ST.hov;
+    const mk = (key, sets, o) => {
+      const n = sets[0].vals.length;
+      const lo = o.min || 0;
+      const hi = Math.max(o.max, lo + 1e-9);
+      const X = (i) => (n > 1 ? (i / (n - 1)) * 600 : 0);
+      const Yp = (v) => Math.max(0, Math.min(100, (1 - (v - lo) / (hi - lo)) * 100));
+      const d = (vals) => vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Yp(v).toFixed(2)).join(' ');
+      const hiI = hv && hv.k === key && hv.i < n ? hv.i : -1;
+      const hx = hiI >= 0 && n > 1 ? (hiI / (n - 1)) * 100 : 0;
+      return {
+        grid: [1, 0.5, 0].map((f) => ({ top: (1 - f) * 100, label: o.ax(lo + (hi - lo) * f) })),
+        lines: sets.map((x) => ({ d: d(x.vals), color: x.color })),
+        areas: sets.filter((x) => x.fill).map((x) => ({ d: d(x.vals) + ' L600 100 L0 100 Z', fill: T.rgba(x.color, dark() ? 0.2 : 0.12) })),
+        ends: o.ends ? sets.map((x) => ({ top: Yp(x.vals[n - 1]), label: x.name, color: x.color })) : [],
+        hov: hiI >= 0, hx, tipX: hx, tipShift: hx > 62 ? 'calc(-100% - 12px)' : '12px',
+        dots: hiI >= 0 ? sets.map((x) => ({ top: Yp(x.vals[hiI]), color: x.color })) : [],
+        tipTitle: hiI >= 0 ? o.xAt(hiI, n) : '',
+        tipRows: hiI >= 0 ? sets.map((x) => ({ label: x.name, value: o.fmt(x.vals[hiI]), color: x.color })) : [],
+        cols: sets[0].vals.map((v, i) => ({ enter: () => set2({ hov: { k: key, i } }) })),
+        leave: () => set2({ hov: null }),
+        xl: o.xl.map((t) => ({ t })),
+        legend: sets.map((x) => ({ label: x.name, color: x.color, value: o.fmt(x.vals[n - 1]) })),
+        now: o.nowTxt != null ? o.nowTxt : o.fmt(sets[0].vals[n - 1]),
+      };
+    };
+    const padRing = (arr, n) => {
+      const a = arr.slice(-n);
+      while (a.length < n) a.unshift(a.length ? a[0] : 0);
+      return a;
+    };
+
+    // ---------- nav / sidebar
+    const pendDev = (ov.pending && ov.pending.devices) || [];
+    const pendGr = (ov.pending && ov.pending.grants) || [];
+    const openAlerts = ov.alerts || [];
+    const devCounts = ov.devices || {};
+    const pages = [
+      ['overview', I.grid, s.pOverview, s.pOverviewSub, 0, null],
+      ['devices', I.devices, s.pDevices, s.pDevicesSub, devCounts.online || 0, 'off'],
+      ['comms', I.swap, s.pComms, s.pCommsSub, 0, null],
+      ['frp', I.tunnel, s.pFrp, s.pFrpSub, 0, null],
+      ['access', I.userCheck, s.pAccess, s.pAccessSub, pendDev.length + pendGr.length, 'warn'],
+      ['security', I.shield, s.pSecurity, s.pSecuritySub, openAlerts.length, 'crit'],
+      ['monitor', I.activity, s.pMonitor, s.pMonitorSub, 0, null],
+      ['system', I.gear, s.pSystem, s.pSystemSub, 0, null],
+    ];
+    const badgeC = { off: [c.muted, c.tile], warn: [c.warn, c.warnSoft], crit: [c.crit, c.critSoft] };
+    const nav = pages.map((p) => {
+      const on = p[0] === page;
+      return { label: p[2], icon: p[1], go: go2(p[0]), current: on ? 'page' : 'false', bg: on ? c.accentSoft : 'transparent', fg: on ? c.accent : c.text,
+        hasBadge: p[4] > 0, badge: p[4] > 99 ? '99+' : p[4], badgeFg: p[5] ? badgeC[p[5]][0] : c.muted, badgeBg: p[5] ? badgeC[p[5]][1] : c.tile };
+    });
+    const cur = pages.filter((p) => p[0] === page)[0] || pages[0];
+    const status = D.status || {};
+    const upd = D.update || {};
+    let host = location.host;
+    try { if (status.public_url) host = new URL(status.public_url).host; } catch (_) { /* keep */ }
+    const upSec = status.uptime_s != null ? status.uptime_s + (Date.now() - LIVE.statusAt) / 1000 : null;
+    const srv = {
+      name: host, dot: LIVE.wsOn ? c.okDot : c.warnDot, dotSoft: LIVE.wsOn ? c.okSoft : c.warnSoft, state: LIVE.wsOn ? s.healthy : s.srvDown,
+      up: upSec != null ? fmtDur(upSec) : '—', ver: status.version ? 'v' + status.version : '', hasUpd: !!upd.available,
+    };
+    const meU = (D.me && D.me.user) || {};
+    const meName = meU.display_name || meU.username || '—';
+    const me = { name: meName, ini: (meU.username || '?').slice(0, 2).toUpperCase(), role: role() === 'admin' ? s.superAdmin : roleLabel(role()) };
+
+    const V = {
+      s, c, I, font: FONTS[ST.lang], langTag: LANG_TAGS[ST.lang], brand: D.settings.console_name || 'Meshport',
+      themeIcon: dark() ? I.sun : I.moon, cycleLang, toggleTheme, logout, openAccount: accountSheet,
+      nav, pageTitle: cur[2], pageSub: cur[3], pageErr: ST.pageErr, hasPageErr: !!ST.pageErr,
+      isOverview: page === 'overview', isDevices: page === 'devices', isComms: page === 'comms', isFrp: page === 'frp',
+      isAccess: page === 'access', canGrant: page === 'access' && canOp, isSecurity: page === 'security', isMonitor: page === 'monitor', isSystem: page === 'system',
+      showLive: (page === 'overview' || page === 'comms') && LIVE.wsOn, isAdmin: admin,
+      q: ST.q, setQ: (e) => set2({ q: e.target.value }),
+      goAlerts: go2('monitor'), goSystem: go2('system'), goAccess: go2('access'), goMonitor: go2('monitor'),
+      envLabel: host, hasOpenAlerts: openAlerts.length > 0, srv, me,
+      addDevice: enrollForm, exportAudit, addNode: () => nodeForm(null), grantDirect: grantForm,
+      gc: {
+        dev: 'minmax(220px, 1.6fr) 130px 140px 96px minmax(130px, 1fr) 84px 104px 210px',
+        comm: 'minmax(230px, 1.5fr) 96px minmax(190px, 1.3fr) 100px 64px 86px 130px minmax(170px, 1.2fr) 118px',
+        frp: 'minmax(120px, 1fr) minmax(140px, 1.1fr) 70px 130px minmax(200px, 1.6fr) 110px 100px 50px 186px',
+        acc: 'minmax(170px, 1.2fr) minmax(150px, 1fr) 84px minmax(200px, 1.6fr) 96px 120px 96px 170px',
+        login: '96px 96px minmax(150px, 1.1fr) minmax(150px, 1.2fr) minmax(190px, 1.4fr)',
+        fail: '86px minmax(150px, 1.4fr) minmax(130px, 1.2fr) 110px',
+      },
+      closeOverlay, hasConfirm: !!ST.cf, cf: ST.cf || { title: '', body: '', ok: '' },
+      cancelConfirm: () => set2({ cf: null }),
+      doConfirm: () => { const f = ST.cf && ST.cf.fn; set2({ cf: null }); if (f) f(); },
+      hasToast: !!ST.toast, toast: ST.toast,
+      hasForm: ST.overlay === 'form' && !!ST.fm, fm: formVals(c, seg, sw),
+    };
+
+    // ---------- device helpers (used by overview, devices, drawer)
+    const devState = (d) => (d.status === 'banned' ? 'banned' : d.status === 'disabled' ? 'disabled' : d.status === 'pending' ? 'pending' : d.online ? 'online' : 'offline');
+    const devStatus = (d) => ({ banned: st('crit', s.stBanned), disabled: st('crit', s.disabled), pending: st('warn', s.stPendingDev), online: st('ok', s.online), offline: st('off', s.offline) })[devState(d)];
+    const approveDev = (d) => act(() => api('POST', '/admin/devices/' + d.id + '/approve', {}), F(s.tApprovedDev, { name: d.name }));
+    const rejectDev = (d) => confirmBox(s.cfRejectDev, F(s.cfRejectDevBody, { name: d.name }), s.reject, () => act(() => api('POST', '/admin/devices/' + d.id + '/reject', {}), F(s.tRejectedDev, { name: d.name }), () => set2({ overlay: null })));
+    const toggleDev = (d) => {
+      const k = devState(d);
+      if (k === 'pending') return approveDev(d);
+      if (k === 'banned') return act(() => api('POST', '/admin/devices/' + d.id + '/unban', {}), F(s.tUnbanned, { name: d.name }));
+      if (k === 'disabled') return act(() => api('POST', '/admin/devices/' + d.id + '/enable', {}), F(s.tEnabled, { name: d.name }));
+      return act(() => api('POST', '/admin/devices/' + d.id + '/disable', {}), F(s.tDisabled, { name: d.name }));
+    };
+    const removeDev = (d) => confirmBox(s.cfDelDev, F(s.cfDelDevBody, { name: d.name }), s.delete, () => act(() => api('DELETE', '/admin/devices/' + d.id), F(s.tDeleted, { name: d.name }), () => set2({ overlay: null, drawerId: null })));
+    const openDrawer = (d) => { set2({ overlay: 'drawer', drawerId: d.id }); loadDevice(d.id); };
+    const grantAct = (g, what) => {
+      const tl = lvLabel[g.level] || g.level;
+      if (what === 'approve') return act(() => api('POST', '/admin/grants/' + g.id + '/approve', {}), F(s.tApproved, { target: g.target, level: tl }));
+      if (what === 'reject') return act(() => api('POST', '/admin/grants/' + g.id + '/reject', {}), F(s.tRejected, { app: g.requester }));
+      return confirmBox(s.cfRevoke, F(s.cfRevokeBody, { target: g.target, level: tl }), s.revoke, () => act(() => api('POST', '/admin/grants/' + g.id + '/revoke', {}), F(s.tRevoked, { target: g.target })));
+    };
+
+    // ---------- overview
+    if (page === 'overview') {
+      const L = LIVE.last || {};
+      const res = ov.resources || {};
+      const p2pV = padRing(LIVE.ring.p2p_bps, 30).map(mbps);
+      const relV = padRing(LIVE.ring.relay_bps, 30).map(mbps);
+      const bwMax = niceMax(Math.max.apply(null, p2pV.concat(relV)), 1);
+      V.bw = mk('bw', [{ name: 'P2P', vals: p2pV, color: c.s1 }, { name: s.mixRelay, vals: relV, color: c.s2 }], {
+        max: bwMax, ax: axNum, fmt: fmtMbps, ends: true, xl: ['-60s', '-45s', '-30s', '-15s', s.now],
+        xAt: (i, n) => (i === n - 1 ? s.now : '-' + (n - 1 - i) * 2 + 's'),
+      });
+      const cpu = L.cpu != null ? L.cpu : res.cpu || 0;
+      const mem = L.mem != null ? L.mem : res.mem || 0;
+      const disk = L.disk != null ? L.disk : res.disk || 0;
+      const lvlOf = (v) => (v >= 85 ? 'crit' : v >= 70 ? 'warn' : 'ok');
+      const lvlTxt = { ok: s.normal, warn: s.high, crit: s.critical };
+      const lvlBar = { ok: c.okDot, warn: c.warnDot, crit: c.critDot };
+      const memDet = L.mem_total_mb ? (L.mem_used_mb / 1024).toFixed(1) + ' / ' + (L.mem_total_mb / 1024).toFixed(1) + ' GB' : Math.round(mem) + '%';
+      V.res = [[s.cpu, cpu, 'load ' + Number(L.load1 != null ? L.load1 : res.load1 || 0).toFixed(2)], [s.memory, mem, memDet],
+        [s.disk, disk, L.disk_free_gb != null ? L.disk_free_gb.toFixed(1) + ' GB free' : '']].map((r) => {
+        const k = lvlOf(r[1]);
+        return { label: r[0], pct: Math.round(r[1]), stLabel: lvlTxt[k], stFg: c[k], bar: lvlBar[k], detail: r[2] };
+      });
+      V.resSeg = seg([['local', s.resLocal]], 'local', () => {});
+      const rx = L.net_rx_bps != null ? L.net_rx_bps : res.net_rx_bps;
+      const tx = L.net_tx_bps != null ? L.net_tx_bps : res.net_tx_bps;
+      V.resFoot = [{ label: s.wsConns, value: String(L.ws_conns != null ? L.ws_conns : devCounts.online || 0) }, { label: s.netNow, value: fmtMbps(mbps(rx)).replace(' Mbps', '') + ' / ' + fmtMbps(mbps(tx)) },
+        { label: s.uptimeShort, value: srv.up }];
+      const sess = ov.sessions || {};
+      const bwL = ov.bandwidth || {};
+      const bwNow = mbps((L.p2p_bps != null ? L.p2p_bps : bwL.p2p_bps) || 0) + mbps((L.relay_bps != null ? L.relay_bps : bwL.relay_bps) || 0) + mbps((L.frp_bps != null ? L.frp_bps : bwL.frp_bps) || 0);
+      const frp = ov.frp || {};
+      const pendN = pendDev.length + pendGr.length;
+      V.kpis = [
+        { label: s.kOnline, value: devCounts.online || 0, unit: ' / ' + (devCounts.total || 0), sub: F(s.offlineN, { n: devCounts.offline || 0 }), subFg: c.muted, icon: I.devices, iconFg: c.accent, iconBg: c.accentSoft, go: go2('devices') },
+        { label: s.kP2p, value: sess.p2p || 0, unit: '', sub: s.p2pDirectSub, subFg: c.muted, icon: I.zap, iconFg: c.ok, iconBg: c.okSoft, go: go2('comms') },
+        { label: s.kRelay, value: sess.relay || 0, unit: '', sub: s.relaySub.split(' · ')[0], subFg: c.muted, icon: I.relay, iconFg: c.warn, iconBg: c.warnSoft, go: go2('comms') },
+        { label: s.kBw, value: bwNow >= 10 ? Math.round(bwNow) : bwNow.toFixed(1), unit: ' Mbps', sub: 'P2P ' + fmtMbps(p2pV[29]) + ' · ' + s.mixRelay + ' ' + fmtMbps(relV[29]), subFg: c.muted, icon: I.activity, iconFg: c.accent, iconBg: c.accentSoft, go: go2('monitor') },
+        { label: s.kFrp, value: frp.active || 0, unit: ' / ' + (frp.total || 0), sub: (frp.nodes_online || 0) + ' / ' + (frp.nodes_total || 0) + ' frps', subFg: c.muted, icon: I.tunnel, iconFg: c.accent, iconBg: c.accentSoft, go: go2('frp') },
+        { label: s.kPend, value: pendN, unit: '', sub: pendN ? s.needsAction : s.allClear, subFg: pendN ? c.warn : c.ok, icon: I.userCheck, iconFg: c.warn, iconBg: c.warnSoft, go: go2('access') },
+      ];
+      const pend = pendDev.map((d) => Object.assign({ title: d.name, meta: F(s.devPendingMeta, { user: d.user || '—' }) + ' · ' + d.did, icon: kindIcon(d.kind), approve: () => approveDev(d), reject: () => rejectDev(d) }, lv(d.level)))
+        .concat(pendGr.map((g) => Object.assign({ title: g.requester + '  →  ' + g.target, meta: (g.reason || '—') + ' · ' + (({ '24h': s.d24h, '7d': s.d7, '30d': s.d30, '90d': s.d90, perm: s.dPerm })[g.duration] || g.duration), icon: I.userCheck,
+          approve: () => grantAct(g, 'approve'), reject: () => grantAct(g, 'reject') }, lv(g.level))));
+      if (!canOp) pend.forEach((p) => { p.approve = () => flash(s.roleViewer); p.reject = p.approve; });
+      V.pendTop = pend.slice(0, 4);
+      V.pendCount = pendN;
+      V.noPend = pendN === 0;
+      V.alertsTop = openAlerts.slice(0, 5).map((a) => Object.assign({ title: a.title, src: a.source || a.category, t: fmtTime(a.created_at).slice(6) }, sevMap[a.severity] || sevMap.info));
+      if (!V.alertsTop.length) V.alertsTop = [Object.assign({ title: s.alertsNone, src: 'meshportd', t: s.now }, sevMap.info)];
+      const p2pS = D['metrics/p2p'] || {};
+      const otherN = (sess.nego || 0) + (sess.fail || 0);
+      const total = (sess.p2p || 0) + (sess.relay || 0) + otherN || 1;
+      V.mix = {
+        rate: p2pS.attempted ? Number(p2pS.rate || 0).toFixed(1) : '—', aria: F(s.mixAria, { p: sess.p2p || 0, r: sess.relay || 0, o: otherN }),
+        segs: [
+          { label: s.mixP2p, n: sess.p2p || 0, pct: Math.round(((sess.p2p || 0) / total) * 100), color: c.s1 },
+          { label: s.mixRelay, n: sess.relay || 0, pct: Math.round(((sess.relay || 0) / total) * 100), color: c.s2 },
+          { label: s.mixOther, n: otherN, pct: Math.round((otherN / total) * 100), color: c.swOff },
+        ],
+      };
+    }
+
+    // ---------- devices
+    if (page === 'devices') {
+      const counts = (D.devices && D.devices.counts) || {};
+      const f = ST.devFilter;
+      const match = devList.filter((d) => f === 'all' || devState(d) === f).filter((d) => has([d.name, d.did, d.ip, d.lan_ip, d.user, d.group, d.os].join(' ')));
+      V.devRows = match.map((d, i) => {
+        const k = devState(d);
+        const tg = { pending: [s.approve, I.check, c.ok], banned: [s.unban, I.play, c.ok], disabled: [s.enable, I.play, c.ok], online: [s.disable, I.ban, c.warn], offline: [s.disable, I.ban, c.warn] }[k];
+        return Object.assign({
+          name: d.name, did: d.did, os: d.os || '—', ip: d.ip || '—', lan: d.lan_ip || '', icon: kindIcon(d.kind), user: d.user || '—', group: d.group || '—',
+          last: k === 'online' ? s.onlineNow : d.last_seen_at ? ago(d.last_seen_at) : '—', div: i ? c.hair : 'transparent', op: k === 'disabled' || k === 'banned' ? 0.55 : 1,
+          detail: () => openDrawer(d), toggle: () => toggleDev(d), toggleLabel: tg[0], toggleIcon: tg[1], toggleFg: tg[2], remove: () => removeDev(d),
+        }, devStatus(d), lv(d.level));
+      });
+      const segOpts = [['all', s.all + ' ' + (counts.all || devList.length)], ['online', s.online + ' ' + (counts.online || 0)], ['offline', s.offline + ' ' + (counts.offline || 0)]];
+      if (counts.pending) segOpts.push(['pending', s.stPendingDev + ' ' + counts.pending]);
+      segOpts.push(['disabled', s.disabled + ' ' + (counts.disabled || 0)]);
+      if (counts.banned) segOpts.push(['banned', s.stBanned + ' ' + counts.banned]);
+      V.devSeg = seg(segOpts, f, (v) => set2({ devFilter: v }));
+      V.devEmpty = V.devRows.length === 0;
+      V.devShowing = F(s.showing, { n: V.devRows.length, total: devList.length });
+    }
+
+    // ---------- device drawer
+    if (ST.overlay === 'drawer' && ST.drawerId) {
+      const det = D.dev[ST.drawerId];
+      const dd = (det && det.device) || devById[ST.drawerId];
+      if (dd) {
+        const k = devState(dd);
+        const pathInfo = { p2p: ['P2P', c.ok, c.okSoft], relay: [s.pathRelay, c.warn, c.warnSoft], nego: [s.pathNego, c.accent, c.accentSoft], fail: [s.pathFail, c.crit, c.critSoft], idle: [s.pathIdle, c.muted, c.tile] };
+        const links = ((det && det.sessions) || []).filter((x) => x.state !== 'closed').map((x) => {
+          const p = pathInfo[x.path] || pathInfo.idle;
+          return { kind: p[0], fg: p[1], bg: p[2], text: x.a_id === dd.id ? x.b : x.a, meta: x.latency_ms == null ? '—' : x.latency_ms + ' ms' };
+        }).concat(((det && det.mappings) || []).map((m) => ({ kind: 'FRP', fg: c.accent, bg: c.accentSoft, text: m.name, meta: String(m.public_addr || '').replace(/^https?:\/\//, '') })));
+        V.dv = Object.assign({
+          name: dd.name, did: dd.did, icon: kindIcon(dd.kind),
+          facts: [
+            { label: s.thOs, value: dd.os || '—' }, { label: s.thOwner, value: (dd.user || '—') + ' · ' + (dd.group || '—') },
+            { label: s.publicIp, value: dd.ip || '—' }, { label: s.lanIp, value: dd.lan_ip || '—' },
+            { label: s.thLastSeen, value: k === 'online' ? s.onlineNow : ago(dd.last_seen_at) }, { label: s.registered, value: fmtDate(dd.registered_at) },
+            { label: s.keyFp, value: dd.fingerprint || '—' }, { label: 'Client', value: [dd.client_version, dd.nat_type].filter(Boolean).join(' · ') || '—' },
+          ],
+          lvSeg: seg([['guest', s.lvGuest], ['member', s.lvMember], ['admin', s.lvAdmin]], dd.level, (v) => {
+            if (v === dd.level) return;
+            act(() => api('PATCH', '/admin/devices/' + dd.id, { level: v }), F(s.tLevelSet, { name: dd.name, level: lvLabel[v] }), () => loadDevice(dd.id));
+          }),
+          links, noLinks: links.length === 0, isPending: k === 'pending', online: k === 'online' && canOp, canToggle: k !== 'pending' && k !== 'banned',
+          approve: () => approveDev(dd), reject: () => rejectDev(dd), edit: () => deviceEditForm(dd), command: () => commandForm(dd),
+          toggle: () => toggleDev(dd).then(() => loadDevice(dd.id)), toggleLabel: k === 'disabled' ? s.enable : s.disable, toggleIcon: k === 'disabled' ? I.play : I.ban,
+          rotate: () => act(() => api('POST', '/admin/devices/' + dd.id + '/rotate-key', {}), F(s.tRotateReq, { name: dd.name }), () => loadDevice(dd.id)),
+          banLabel: k === 'banned' ? s.unban : s.banDevice, banIcon: k === 'banned' ? I.play : I.ban,
+          ban: () => (k === 'banned'
+            ? act(() => api('POST', '/admin/devices/' + dd.id + '/unban', {}), F(s.tUnbanned, { name: dd.name }), () => loadDevice(dd.id))
+            : confirmBox(s.cfBan, F(s.cfBanBody, { name: dd.name }), s.banDevice, () => act(() => api('POST', '/admin/devices/' + dd.id + '/ban', { reason: 'manual' }), F(s.tBanned2, { name: dd.name }), () => loadDevice(dd.id)))),
+          remove: () => removeDev(dd),
+        }, devStatus(dd));
+        V.hasDrawer = true;
+      }
+    }
+
+    // ---------- comms
+    if (page === 'comms') {
+      const all = items('sessions');
+      const pathInfo = {
+        p2p: ['P2P', c.ok, c.okSoft, I.zap], relay: [s.pathRelay, c.warn, c.warnSoft, I.relay], nego: [s.pathNego, c.accent, c.accentSoft, I.refresh],
+        fail: [s.pathFail, c.crit, c.critSoft, I.x], idle: [s.pathIdle, c.muted, c.tile, I.dot], none: [s.pathNone, c.muted, c.tile, I.x],
+      };
+      const stateInfo = { up: ['ok', s.stConnected], nego: ['info', s.stNego], fail: ['crit', s.stFailed], idle: ['off', s.stIdle], closed: ['off', s.stClosed] };
+      const modeLbl = { p2p: s.modeP2p, relay: s.modeRelay, auto: s.modeAuto };
+      const f = ST.commFilter;
+      const match = all.filter((x) => f === 'all' || x.mode === f).filter((x) => has([x.a, x.b, x.via, x.fail_reason].join(' ')));
+      const pctOf = (fl) => (fl ? Math.min(100, Math.round(fl.percent || (fl.size ? (fl.done / fl.size) * 100 : 0))) : 0);
+      V.commRows = match.map((x, i) => {
+        const p = pathInfo[x.state === 'closed' ? 'none' : x.path] || pathInfo.idle;
+        const si = stateInfo[x.state] || stateInfo.idle;
+        const fp = pctOf(x.file);
+        const canCut = canOp && (x.state === 'up' || x.state === 'nego' || x.state === 'idle');
+        const pendM = Math.max(0, (x.msgs_sent || 0) - (x.msgs_delivered || 0));
+        return Object.assign({
+          a: x.a, b: x.b, mode: modeLbl[x.mode] || x.mode, path: p[0], pathFg: p[1], pathBg: p[2], pathIcon: p[3], via: x.via || x.fail_reason || '—',
+          lat: x.latency_ms == null ? '—' : x.latency_ms + ' ms', spd: x.state === 'up' && x.rate_bps > 0 ? fmtRate(x.rate_bps) : '—',
+          msgA: F(s.msgSent, { d: x.msgs_delivered || 0, t: x.msgs_sent || 0 }), msgB: pendM ? F(s.msgPending, { n: pendM }) : F(s.msgRead, { n: x.msgs_read || 0 }), msgBFg: pendM ? c.warn : c.muted,
+          hasFile: !!x.file, noFile: !x.file, fname: x.file ? x.file.name : '', fpct: fp, fbar: fp >= 100 ? c.okDot : c.accentBg,
+          fsize: x.file ? (fp >= 100 ? s.fileDone + ' · ' : '') + fmtBytes(x.file.size) : '', div: i ? c.hair : 'transparent',
+          cut: () => { if (canCut) act(() => api('POST', '/admin/sessions/' + x.id + '/disconnect', {}), F(s.tCut, { a: x.a, b: x.b })); },
+          cutDisabled: canCut ? 'false' : 'true', cutFg: canCut ? c.text : c.faint,
+        }, st(si[0], si[1]));
+      });
+      const up = all.filter((x) => x.state === 'up');
+      const p2pUp = up.filter((x) => x.path === 'p2p').length;
+      const relayUp = up.filter((x) => x.path === 'relay').length;
+      const lat = up.filter((x) => x.latency_ms != null).map((x) => x.latency_ms).sort((a, b) => a - b);
+      const avg = lat.length ? Math.round(lat.reduce((a, b) => a + b, 0) / lat.length) : 0;
+      const p95 = lat.length ? lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.95))] : 0;
+      const rm = (D.sessions && D.sessions.relay_messages_24h) || {};
+      const files = all.filter((x) => x.file && x.state === 'up' && pctOf(x.file) < 100).length;
+      V.commTiles = [
+        { label: s.tActive, value: up.length, unit: ' / ' + all.length, sub: F(s.tNego, { n: all.filter((x) => x.state === 'nego').length }) },
+        { label: s.tP2pShare, value: up.length ? Math.round((p2pUp / up.length) * 100) : 0, unit: '%', sub: F(s.p2pRelayCount, { p: p2pUp, r: relayUp }) },
+        { label: s.tAvgLat, value: avg, unit: ' ms', sub: 'p95 · ' + p95 + ' ms' },
+        { label: s.tPendMsgs, value: rm.queued || 0, unit: '', sub: s.awaitingPeer },
+        { label: s.tFiles, value: files, unit: '', sub: F(s.inProgress, { n: files }) },
+      ];
+      const cnt = (m) => all.filter((x) => x.mode === m).length;
+      V.commSeg = seg([['all', s.all + ' ' + all.length], ['p2p', s.modeP2p + ' ' + cnt('p2p')], ['relay', s.modeRelay + ' ' + cnt('relay')], ['auto', s.modeAuto + ' ' + cnt('auto')]], f, (v) => set2({ commFilter: v }));
+      V.commEmpty = V.commRows.length === 0;
+    }
+
+    // ---------- FRP
+    const nodes = items('frp/nodes');
+    const maps = items('frp/mappings');
+    if (page === 'frp') {
+      const clients = items('frp/clients');
+      const mState = (m) => (!m.enabled ? 'stopped' : m.status === 'online' ? 'running' : m.status === 'error' ? 'error' : 'waiting');
+      V.frpsCards = nodes.map((n) => {
+        const nm = maps.filter((m) => m.node_id === n.id);
+        const stt = !n.enabled ? st('off', s.disabled) : n.status === 'online' ? st('ok', s.running) : n.status === 'offline' ? st('crit', s.offline) : st('off', s.stUnknown);
+        return Object.assign({
+          name: n.name, ver: n.version || '—', host: n.public_addr, ip: n.region || (n.managed ? 'managed' : 'remote'),
+          clients: n.frpc_clients || 0, proxies: (n.mappings_online || 0) + ' / ' + (n.mappings || 0), conns: nm.reduce((a, m) => a + (m.conns || 0), 0),
+          ports: [n.bind_port, n.vhost_http_port, n.vhost_https_port].filter(Boolean).join(' · ') || '—',
+          traffic: fmtRate(nm.reduce((a, m) => a + (m.rate_in || 0) + (m.rate_out || 0), 0)), err: n.last_error || '', hasErr: !!n.last_error,
+          canManage: admin, managed: !!n.managed, edit: () => nodeForm(n),
+          config: async () => { try { const txt = await api('GET', '/admin/frp/nodes/' + n.id + '/config', undefined, { text: true }); infoSheet(F(s.nodeToml, { name: n.name }), s.nodeTomlDesc, [['frps.toml', txt]]); } catch (e) { flash(e.message); } },
+          restart: () => confirmBox(F(s.cfRestart, { name: n.name }), s.cfRestartBody, s.restart, () => act(() => api('POST', '/admin/frp/nodes/' + n.id + '/restart', {}), F(s.tNodeRestarted, { name: n.name }))),
+          remove: () => confirmBox(s.cfDelNode, F(s.cfDelNodeBody, { name: n.name }), s.delete, () => act(() => api('DELETE', '/admin/frp/nodes/' + n.id), F(s.tDeleted, { name: n.name }))),
+        }, stt);
+      });
+      V.noNodes = nodes.length === 0;
+      V.frpcRows = clients.map((x) => {
+        const d = devById[x.device_id];
+        return Object.assign({ name: x.device || x.device_id, icon: d ? kindIcon(d.kind) : I.server, ver: x.version || '—', count: F(s.nProxies, { n: maps.filter((m) => m.device_id === x.device_id).length }) }, st('ok', s.online));
+      });
+      V.frpcCount = F(s.nProxies, { n: maps.length }) + ' · ' + clients.length + ' frpc';
+      const f = ST.frpFilter;
+      const runN = maps.filter((m) => mState(m) === 'running').length;
+      const match = maps.filter((m) => f === 'all' || (f === 'running' ? mState(m) === 'running' : mState(m) !== 'running'))
+        .filter((m) => has([m.name, m.device, m.node, (m.domains || []).join(' '), m.local_port, m.remote_port, m.public_addr].join(' ')));
+      V.mapRows = match.map((m, i) => {
+        const ms = mState(m);
+        const stt = ms === 'running' ? st('ok', s.running) : ms === 'stopped' ? st('off', s.stopped) : ms === 'error' ? st('crit', s.stFailed) : st('warn', s.stError);
+        return Object.assign({
+          name: m.name, client: m.device, server: m.node, proto: String(m.proto).toUpperCase(), local: m.local_ip + ':' + m.local_port,
+          pub: m.proto === 'stcp' || m.proto === 'xtcp' ? m.proto + ' · ' + s.visitorOnly : m.public_addr || '—',
+          tin: ms === 'running' ? fmtRate(m.rate_in) : '—', tout: ms === 'running' ? fmtRate(m.rate_out) : '—', conns: m.conns || 0, div: i ? c.hair : 'transparent',
+          edit: () => openMapForm(m),
+          toggle: () => act(() => api('POST', '/admin/frp/mappings/' + m.id + (m.enabled ? '/stop' : '/start'), {}), F(m.enabled ? s.tMapOff : s.tMapOn, { name: m.name })),
+          toggleLabel: m.enabled ? s.stop : s.start, toggleIcon: m.enabled ? I.stop : I.play, toggleFg: m.enabled ? c.crit : c.ok,
+          remove: () => confirmBox(s.cfDelMap, F(s.cfDelMapBody, { name: m.name }), s.delete, () => act(() => api('DELETE', '/admin/frp/mappings/' + m.id), F(s.tDeleted, { name: m.name }))),
+        }, stt);
+      });
+      V.frpSeg = seg([['all', s.all + ' ' + maps.length], ['running', s.running + ' ' + runN], ['stopped', s.stopped + ' / ' + s.stError + ' ' + (maps.length - runN)]], f, (v) => set2({ frpFilter: v }));
+      V.frpTotals = F(s.frpTotals, { run: runN, total: maps.length });
+      V.frpEmpty = V.mapRows.length === 0;
+      V.stopAllFrp = () => confirmBox(s.cfStopAll, s.cfStopAllBody, s.stopAllFrp, () => act(() => api('POST', '/admin/frp/stop-all', {}), s.tStopAll));
+      V.openAddMap = () => openMapForm(null);
+    }
+    if (ST.overlay === 'map' && ST.mf) {
+      const f = ST.mf;
+      const web = f.proto === 'http' || f.proto === 'https';
+      const secret = f.proto === 'stcp' || f.proto === 'xtcp';
+      const node = nodes.find((n) => n.id === f.node) || {};
+      const setMf = (k) => (e) => set2({ mf: Object.assign({}, ST.mf, { [k]: e.target.value }) });
+      const pickMf = (k) => (v) => set2({ mf: Object.assign({}, ST.mf, { [k]: v }) });
+      const eligible = devList.filter((d) => d.status === 'active' && (d.level === 'member' || d.level === 'admin'));
+      V.mf = {
+        title: f.id ? s.editMapping : s.newMapping, name: f.name, client: f.device, lip: f.lip, lport: f.lport, remote: f.remote,
+        remoteLabel: web ? s.domain : secret ? s.secretKey : s.remotePort,
+        preview: web ? f.proto + '://' + (f.remote || '…') + '  →  ' + f.lip + ':' + f.lport : secret ? s.stcpPreview : (node.public_addr || '…') + ':' + (f.remote || '…') + '  →  ' + f.lip + ':' + f.lport,
+        clients: (f.id ? devList.filter((d) => d.id === f.device) : eligible).map((d) => ({ v: d.id, label: d.name + ' · ' + (lvLabel[d.level] || d.level) })),
+        protoSeg: seg([['http', 'HTTP'], ['https', 'HTTPS'], ['tcp', 'TCP'], ['udp', 'UDP'], ['stcp', 'STCP'], ['xtcp', 'XTCP']], f.proto, pickMf('proto')),
+        srvSeg: seg(nodes.map((n) => [n.id, n.name]), f.node, pickMf('node')),
+        setName: setMf('name'), setClient: setMf('device'), setLip: setMf('lip'), setLport: setMf('lport'), setRemote: setMf('remote'),
+        saveLabel: f.busy ? '…' : f.id ? s.save : s.create, err: f.err, hasErr: !!f.err, save: saveMap,
+      };
+      V.hasMapModal = true;
+    }
+
+    // ---------- access
+    if (page === 'access') {
+      const grants = items('grants');
+      const f = ST.accFilter;
+      const durLbl = { '24h': s.d24h, '7d': s.d7, '30d': s.d30, '90d': s.d90, perm: s.dPerm };
+      const aSt = { pending: ['warn', s.stPending], approved: ['ok', s.stApproved], rejected: ['crit', s.stRejected], revoked: ['off', s.stRevoked], expired: ['off', s.stExpired] };
+      const isHist = (g) => g.status === 'rejected' || g.status === 'revoked' || g.status === 'expired';
+      const list = grants.filter((g) => f === 'all' || (f === 'history' ? isHist(g) : g.status === f)).filter((g) => has([g.requester, g.target, g.reason].join(' ')));
+      V.accRows = list.map((g, i) => {
+        const rq = devById[g.requester_id];
+        const tg = devById[g.target_id];
+        const a = aSt[g.status] || aSt.expired;
+        return Object.assign({
+          app: g.requester || '—', appUser: rq ? rq.user : '', appIcon: rq ? kindIcon(rq.kind) : I.devices, target: g.target, targetId: tg ? tg.did : '',
+          reason: g.reason || '—', dur: durLbl[g.duration] || g.duration || '—',
+          until: g.status === 'pending' ? s.afterApprove : g.expires_at ? F(s.until, { d: fmtDate(g.expires_at) }) : '—',
+          at: fmtTime(g.created_at), div: i ? c.hair : 'transparent',
+          isPending: g.status === 'pending' && canOp, isApproved: g.status === 'approved' && canOp, isClosed: isHist(g),
+          closedBy: [g.decided_by, g.decided_at ? fmtTime(g.decided_at) : ''].filter(Boolean).join(' · '),
+          approve: () => grantAct(g, 'approve'), reject: () => grantAct(g, 'reject'), revoke: () => grantAct(g, 'revoke'),
+        }, st(a[0], a[1]), lv(g.level));
+      });
+      const cntS = (k) => grants.filter((g) => g.status === k).length;
+      V.accSeg = seg([['pending', s.pending + ' ' + cntS('pending')], ['approved', s.approved + ' ' + cntS('approved')], ['history', s.history + ' ' + grants.filter(isHist).length], ['all', s.all + ' ' + grants.length]], f, (v) => set2({ accFilter: v }));
+      V.accEmpty = V.accRows.length === 0;
+      const lvMap = {};
+      items('levels').forEach((l) => { lvMap[l.level] = l; });
+      V.levelDefs = ['guest', 'member', 'admin'].map((k) => {
+        const l = lv(k);
+        return { label: l.lvLabel, fg: l.lvFg, bg: l.lvBg, desc: s['lv' + k.charAt(0).toUpperCase() + k.slice(1) + 'Desc'], count: lvMap[k] ? lvMap[k].devices : 0 };
+      });
+      V.userRows = items('users').map((u) => Object.assign({
+        name: u.display_name ? u.display_name + ' · ' + u.username : u.username, ini: u.username.slice(0, 2).toUpperCase(), devices: u.devices || '—', op: u.disabled ? 0.55 : 1,
+        canEdit: admin, edit: () => userForm(u),
+      }, roleLv(u.role), u.mfa_enabled ? st('ok', 'TOTP') : st('warn', s.mfaNone)));
+      V.addUser = () => userForm(null);
+    }
+
+    // ---------- security
+    if (page === 'security') {
+      const logins = items('security/logins');
+      const f = ST.loginFilter;
+      const abnN = logins.filter((l) => l.abnormal && minsAgo(l.at) < 1440).length;
+      V.loginRows = logins.filter((l) => f === 'all' || l.abnormal).filter((l) => has([l.subject, l.ip, l.user_agent].join(' '))).slice(0, 10).map((l) => Object.assign({
+        t: fmtTime(l.at), user: l.subject || '—', ip: l.ip || '—', loc: (l.kind === 'device' ? s.thDevice : s.thAccount) + ' · ' + (l.method || '—'),
+        client: shortUA(l.user_agent), abn: !!l.abnormal, abnLabel: l.abnormal_reason || s.abnormal, rowBg: l.abnormal ? c.abnRow : 'transparent',
+        canUnblock: !l.success && l.kind === 'user' && canOp && !!l.ip,
+        unblock: () => act(() => api('POST', '/admin/security/unblock', { ip: l.ip }), s.unblock + ' · ' + l.ip),
+      }, l.success ? st('ok', s.resOk) : st('crit', l.reason ? s.stFailed + ' · ' + l.reason : s.stFailed)));
+      V.loginSeg = seg([['all', s.all], ['abn', s.abnormal + ' ' + logins.filter((l) => l.abnormal).length]], f, (v) => set2({ loginFilter: v }));
+      const alerts = items('alerts').filter((a) => a.status !== 'resolved');
+      V.secAlerts = alerts.slice(0, 6).map((a) => Object.assign({ title: a.title, t: fmtTime(a.created_at) }, sevMap[a.severity] || sevMap.info));
+      if (!V.secAlerts.length) V.secAlerts = [Object.assign({ title: s.alertsNone, t: s.now }, sevMap.info)];
+      const keys = items('security/keys');
+      const maxAge = (D['security/keys'] && D['security/keys'].max_age_days) || 180;
+      s.rotateEvery = s0.rotateEvery.replace(/\d+/, String(maxAge));
+      V.keyRows = keys.map((k) => {
+        const pend = k.state === 'rotation_pending';
+        const fp = String(k.fingerprint || '');
+        return Object.assign({
+          name: k.device, fp: fp.length > 30 ? fp.slice(0, 18) + '…' + fp.slice(-6) : fp, age: k.age_days ? F(s.rotatedAgo, { d: k.age_days }) : s.today,
+          rotate: () => { if (!pend && canOp) act(() => api('POST', '/admin/devices/' + k.device_id + '/rotate-key', {}), F(s.tRotateReq, { name: k.device })); },
+          rotDisabled: pend || !canOp ? 'true' : 'false', rotFg: pend || !canOp ? c.faint : c.text,
+        }, pend ? st('info', s.keyPending) : k.state === 'ok' ? st('ok', s.keyValid) : st('warn', s.keyDue));
+      });
+      const keysDue = keys.filter((k) => k.state !== 'ok').length;
+      const mfa = D['security/mfa'] || {};
+      const users = items('users');
+      const missing = {};
+      (mfa.missing || []).forEach((u) => { missing[u.id] = u; });
+      V.mfaRows = users.map((u) => Object.assign({
+        name: u.username, ini: u.username.slice(0, 2).toUpperCase(), canRemind: !u.mfa_enabled && canOp && !(missing[u.id] && missing[u.id].reminded_at),
+        remind: () => act(() => api('POST', '/admin/security/mfa/remind', { users: [u.id] }), F(s.tReminded, { name: u.username })),
+      }, u.mfa_enabled ? st('ok', 'TOTP') : st('warn', s.mfaNone)));
+      V.mfaSw = sw(!!mfa.required, () => {
+        if (!admin) return;
+        act(() => api('PUT', '/admin/security/mfa', { required: !mfa.required }), mfa.required ? s.mfaReqOff : s.mfaReqOn);
+      }, s.requireMfa);
+      const toks = items('security/tokens').filter((t) => !t.revoked_at);
+      V.tokRows = toks.map((t) => {
+        const lm = minsAgo(t.last_used_at);
+        return {
+          name: t.name, scope: (t.scopes || []).join(', ') || '—', last: t.last_used_at ? F(s.lastUsed, { t: ago(t.last_used_at) }) : s.lastUsedNever,
+          lastFg: lm != null && lm > 90 * 1440 ? c.warn : c.muted, exp: t.expires_at ? fmtDate(t.expires_at) : s.never,
+          revoke: () => confirmBox(s.cfRevokeTok, F(s.cfRevokeTokBody, { name: t.name }), s.revoke, () => act(() => api('DELETE', '/admin/security/tokens/' + t.id), F(s.tTokRevoked, { name: t.name }))),
+        };
+      });
+      V.tokEmpty = V.tokRows.length === 0;
+      V.createToken = () => tokenForm(false);
+      const acl = items('security/acl');
+      const allow = acl.filter((r) => r.action === 'allow');
+      const deny = acl.filter((r) => r.action === 'deny');
+      const curL = ST.aclMode === 'allow' ? allow : deny;
+      V.aclRows = curL.map((r) => ({
+        cidr: r.cidr, note: r.note || r.created_by || '', icon: ST.aclMode === 'allow' ? I.check : I.ban, fg: ST.aclMode === 'allow' ? c.ok : c.crit,
+        remove: () => act(() => api('DELETE', '/admin/security/acl/' + r.id), F(s.tAclRemoved, { cidr: r.cidr })),
+      }));
+      V.aclSeg = seg([['allow', s.allow + ' ' + allow.length], ['deny', s.deny + ' ' + deny.length]], ST.aclMode, (v) => set2({ aclMode: v }));
+      V.aclDraft = ST.aclDraft;
+      V.setAclDraft = (e) => set2({ aclDraft: e.target.value });
+      V.addAcl = () => {
+        const v = ST.aclDraft.trim();
+        if (!/^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(v)) { flash(s.tBadCidr); return; }
+        const doAdd = () => act(() => api('POST', '/admin/security/acl', { action: ST.aclMode, cidr: v, note: '' }), F(s.tAclAdded, { list: ST.aclMode === 'allow' ? s.allow : s.deny, cidr: v }), () => set2({ aclDraft: '' }));
+        if (ST.aclMode === 'allow' && !allow.length) {
+          const ip = (D['security/acl'] && D['security/acl'].your_ip) || '—';
+          confirmBox(s.aclLockTitle, F(s.aclLockBody, { ip }), s.add, doAdd);
+        } else doAdd();
+      };
+      const bans = items('security/bans');
+      V.banRows = bans.map((b) => ({ name: b.name, did: b.did, reason: b.ban_reason || '—', unban: () => act(() => api('POST', '/admin/devices/' + b.id + '/unban', {}), F(s.tUnbanned, { name: b.name })) }));
+      V.banEmpty = V.banRows.length === 0;
+      V.banCount = String(bans.length);
+      const noMfa = users.filter((u) => !u.mfa_enabled).length;
+      V.secTiles = [
+        { label: s.tAbn, value: abnN, sub: abnN ? s.needsReview : s.allClear, fg: abnN ? c.crit : c.ok, icon: I.alert },
+        { label: s.tMfa, value: (users.length - noMfa) + ' / ' + users.length, sub: noMfa ? F(s.mfaCover, { n: noMfa }) : s.mfaCoverZero, fg: noMfa ? c.warn : c.ok, icon: I.lock },
+        { label: s.tKeysDue, value: keysDue, sub: s.keysDueSub.replace(/\d+/, String(maxAge)), fg: keysDue ? c.warn : c.ok, icon: I.key },
+        { label: s.tTokens, value: toks.length, sub: F(s.tokensSub, { n: toks.filter((t) => { const m = minsAgo(t.last_used_at); return m != null && m > 90 * 1440; }).length }), fg: c.muted, icon: I.key },
+        { label: s.tBanned, value: bans.length, sub: F(s.bannedSub, { n: deny.length }), fg: c.muted, icon: I.ban },
+      ];
+    }
+
+    // ---------- monitor
+    if (page === 'monitor') {
+      const M = D.metrics || {};
+      const ser = M.series || {};
+      const range = ST.range;
+      const span = { '1h': 3600, '24h': 86400, '7d': 7 * 86400 }[range];
+      const N = 24;
+      const now = Date.now() / 1000;
+      const t0 = now - span;
+      const step = span / N;
+      const bucket = (pts, fn) => {
+        const sum = new Array(N).fill(0);
+        const cnt = new Array(N).fill(0);
+        (pts || []).forEach((p) => {
+          const i = Math.floor((p.t - t0) / step);
+          if (i >= 0 && i < N) { sum[i] += fn ? fn(p.v) : p.v; cnt[i]++; }
+        });
+        let lastV = null;
+        return sum.map((v, i) => { if (cnt[i]) lastV = v / cnt[i]; return cnt[i] ? v / cnt[i] : lastV == null ? 0 : lastV; });
+      };
+      const xlR = range === '1h' ? ['-60m', '-45m', '-30m', '-15m', s.now] : range === '24h' ? ['-24h', '-18h', '-12h', '-6h', s.now] : ['-7d', '-5d', '-3d', '-1d', s.now];
+      const xAtR = (i, n) => {
+        const back = (n - 1 - i) * step;
+        if (back < 1) return s.now;
+        return back < 3600 ? '-' + Math.round(back / 60) + 'm' : back < 86400 * 2 ? '-' + Math.round(back / 3600) + 'h' : '-' + Math.round(back / 86400) + 'd';
+      };
+      const pct = (v) => Math.round(v) + '%';
+      const lt = M.latest || {};
+      const cpuV = bucket(ser.cpu);
+      const memV = bucket(ser.mem);
+      const rxV = bucket(ser.net_rx_bps, mbps);
+      const txV = bucket(ser.net_tx_bps, mbps);
+      const netV = rxV.map((v, i) => v + txV[i]);
+      const relV = bucket(ser.relay_bps, mbps);
+      V.cpu = mk('cpu', [{ name: s.cpu, vals: cpuV, color: c.bar, fill: true }], { max: 100, ax: pct, fmt: pct, xl: xlR, xAt: xAtR, nowTxt: lt.cpu != null ? pct(lt.cpu) : '—' });
+      V.mem = mk('mem', [{ name: s.memory, vals: memV, color: c.bar, fill: true }], { max: 100, ax: pct, fmt: pct, xl: xlR, xAt: xAtR, nowTxt: lt.mem != null ? pct(lt.mem) : '—' });
+      V.net = mk('net', [{ name: s.network, vals: netV, color: c.bar, fill: true }], { max: niceMax(Math.max.apply(null, netV), 1), ax: axNum, fmt: fmtMbps, xl: xlR, xAt: xAtR,
+        nowTxt: fmtMbps(mbps((lt.net_rx_bps || 0) + (lt.net_tx_bps || 0))) });
+      const p2pS = D['metrics/p2p'] || {};
+      let rateV = (ser.p2p_success || []).length ? bucket(ser.p2p_success) : bucket((p2pS.items || []).map((x) => ({ t: new Date(x.hour).getTime() / 1000 + 1800, v: x.rate })));
+      const rmin = Math.min.apply(null, rateV);
+      const rlo = Math.max(0, Math.min(80, Math.floor((rmin - 5) / 10) * 10));
+      V.rate = mk('rate', [{ name: s.p2pSuccess, vals: rateV, color: c.s1 }], { min: rlo, max: 100, ax: pct, fmt: (v) => v.toFixed(1) + '%', xl: xlR, xAt: xAtR,
+        nowTxt: p2pS.attempted ? Number(p2pS.rate).toFixed(1) + '%' : '—' });
+      V.relay = mk('relay', [{ name: s.relayBw, vals: relV, color: c.s2, fill: true }], { max: niceMax(Math.max.apply(null, relV), 1), ax: axNum, fmt: fmtMbps, xl: xlR, xAt: xAtR, nowTxt: fmtMbps(mbps(lt.relay_bps)) });
+      V.relaySub = s.relaySub;
+      s.p2pSuccessSub = p2pS.attempted ? p2pS.succeeded + ' / ' + p2pS.attempted + ' · %' : s.p2pNoData;
+      // FRP traffic per bucket = average throughput × bucket length
+      const frpB = bucket(ser.frp_bps).map((v) => v * step);
+      const maxB = Math.max.apply(null, frpB);
+      const unit = maxB >= 1e9 ? ['GB', 1e9] : maxB >= 1e6 ? ['MB', 1e6] : ['KB', 1e3];
+      const fv = frpB.map((v) => v / unit[1]);
+      const fmax = niceMax(Math.max.apply(null, fv), 1);
+      const fhI = hv && hv.k === 'frp' ? hv.i : -1;
+      const fhx = fhI >= 0 ? ((fhI + 0.5) / fv.length) * 100 : 0;
+      s.frpTrendSub = s0.frpTrendSub + ' · ' + unit[0];
+      V.frpBars = {
+        grid: [1, 0.5, 0].map((x) => ({ top: (1 - x) * 100, label: axNum(fmax * x) })),
+        bars: fv.map((v, i) => ({ h: (v / fmax) * 100, color: i === fhI ? c.bar : c.barDim, enter: () => set2({ hov: { k: 'frp', i } }) })),
+        leave: () => set2({ hov: null }), hov: fhI >= 0, tipX: fhx, tipShift: fhx > 62 ? 'calc(-100% - 12px)' : '12px',
+        tipTitle: fhI >= 0 ? xAtR(fhI, fv.length) : '', tipRows: fhI >= 0 ? [{ label: s.frpTrend, value: fv[fhI].toFixed(2) + ' ' + unit[0], color: c.bar }] : [],
+        xl: xlR.map((t) => ({ t })), total: fmtBytes(frpB.reduce((a, b) => a + b, 0)),
+      };
+      V.rangeSeg = seg([['1h', '1h'], ['24h', '24h'], ['7d', '7d']], range, (v) => { set2({ range: v, hov: null }); loadPage(); });
+      const kindSt = { p2p: ['warn', s.kindP2p], relay: ['crit', s.kindRelay], frp: ['crit', s.kindFrp], auth: ['crit', s.kindAuth] };
+      const fails = items('failures');
+      V.failRows = fails.slice(0, 12).map((x) => Object.assign({ t: fmtTime(x.at).slice(6), parties: (x.a || '—') + (x.b ? ' ↔ ' + x.b : ''), reason: x.reason || x.detail || '—' }, st((kindSt[x.kind] || ['off', x.kind])[0], (kindSt[x.kind] || ['off', x.kind])[1])));
+      const l24 = (D.failures && D.failures.last_24h) || {};
+      V.failCount = Object.keys(l24).reduce((a, k) => a + l24[k], 0) + ' · 24h';
+      const lvFg = { INFO: '#7FD3BC', WARN: '#F6B556', ERROR: '#FF8A7A', DEBUG: '#7C848C' };
+      const lvF = ST.logLv;
+      V.logRows = logs.filter((l) => lvF === 'all' || String(l.level).toUpperCase() === lvF).slice(0, 14).reverse()
+        .map((l) => { const u = String(l.level || '').toUpperCase(); return { t: fmtClock(l.ts), lv: u, src: l.source || '—', msg: l.msg, fg: lvFg[u] || '#D7DCE0' }; });
+      if (!V.logRows.length) V.logRows = [{ t: fmtClock(new Date()), lv: '—', src: 'meshportd', msg: s.noLogs, fg: '#7C848C' }];
+      V.logSeg = seg([['all', s.logAll], ['INFO', 'INFO'], ['WARN', 'WARN'], ['ERROR', 'ERROR']], lvF, (v) => set2({ logLv: v }));
+      V.pausedStr = ST.paused ? 'true' : 'false';
+      V.pauseIcon = ST.paused ? I.play : I.pause;
+      V.pauseLabel = ST.paused ? s.resume : s.pause;
+      V.togglePause = () => set2({ paused: !ST.paused });
+      const alSt = { open: ['warn', s.stOpen], acked: ['info', s.stAck], resolved: ['ok', s.stResolved] };
+      V.alertHist = items('alerts').slice(0, 12).map((a) => Object.assign({
+        title: a.title, t: fmtTime(a.created_at), dur: (a.count > 1 ? '×' + a.count + ' · ' : '') + (a.source || a.category || ''),
+        canResolve: a.status !== 'resolved' && canOp, resolve: () => act(() => api('POST', '/admin/alerts/' + a.id + '/resolve', {}), s.stResolved),
+      }, sevMap[a.severity] || sevMap.info, st((alSt[a.status] || alSt.open)[0], (alSt[a.status] || alSt.open)[1])));
+      if (!V.alertHist.length) V.alertHist = [Object.assign({ title: s.alertsNone, t: s.now, dur: 'meshportd', canResolve: false }, sevMap.info, st('ok', s.stResolved))];
+    }
+
+    // ---------- system
+    if (page === 'system') {
+      const roleOf = { api: 'HTTP API', hub: s.roleSignal, database: s.roleDb, turn: s.roleStun };
+      V.svcRows = ((D.status && D.status.services) || []).map((v) => {
+        const b = !!ST.busy[v.name];
+        const ok = v.status === 'running' || v.status === 'online';
+        const canR = v.restartable && admin && !b;
+        return Object.assign({
+          name: v.name, role: roleOf[v.name] || (v.kind === 'frps' ? s.roleFrps : v.kind), detail: v.detail || '', up: v.name === 'api' ? srv.up : '',
+          busy: canR ? 'false' : 'true', btn: b ? s.restarting : s.restart,
+          restart: () => {
+            if (!canR) return;
+            confirmBox(F(s.cfRestart, { name: v.name }), s.cfRestartBody, s.restart, async () => {
+              set2({ busy: Object.assign({}, ST.busy, { [v.name]: true }) });
+              await act(() => api('POST', '/admin/system/services/' + encodeURIComponent(v.name) + '/restart', {}), F(s.tRestartReq, { name: v.name }));
+              setTimeout(() => set2({ busy: Object.assign({}, ST.busy, { [v.name]: false }) }), 2500);
+            });
+          },
+        }, b ? st('info', s.restarting) : ok ? st('ok', s.running) : v.status === 'external' || v.status === 'unknown' ? st('off', v.status === 'external' ? 'external' : s.stUnknown) : st('crit', v.status));
+      });
+      V.svcSummary = F(s.svcSummary, { ok: V.svcRows.filter((v) => v.stFg === c.ok).length, total: V.svcRows.length });
+      const db = D['system/db'] || {};
+      const lt = (D.metrics && D.metrics.latest) || LIVE.last || {};
+      const pages = db.pages || 0;
+      const used = pages ? Math.round(((pages - (db.free_pages || 0)) / pages) * 100) : 0;
+      const rows = db.rows ? Object.keys(db.rows).reduce((a, k) => a + db.rows[k], 0) : 0;
+      V.db = st('ok', s.healthy);
+      V.dbMeters = [
+        { label: s.diskUse, detail: lt.disk != null ? Math.round(lt.disk) + '% · ' + (lt.disk_free_gb != null ? lt.disk_free_gb.toFixed(1) + ' GB free' : '') : '—', pct: Math.round(lt.disk || 0), bar: (lt.disk || 0) >= 90 ? c.critDot : (lt.disk || 0) >= 75 ? c.warnDot : c.okDot },
+        { label: s.dbPages, detail: (pages - (db.free_pages || 0)) + ' / ' + pages, pct: used, bar: c.okDot },
+      ];
+      V.dbFacts = [{ label: s.dbEngine, value: db.engine || '—' }, { label: s.dbSize, value: fmtBytes((db.size_bytes || 0) + (db.wal_bytes || 0)) },
+        { label: s.dbRows, value: rows.toLocaleString() }, { label: s.dbSchema, value: db.schema_version != null ? 'v' + db.schema_version : '—' }];
+      const latest = upd.latest || upd.current;
+      V.verRows = items('system/versions').map((v) => {
+        const isCore = v.name === 'meshportd';
+        const lat = isCore ? latest || v.version : v.version;
+        const fresh = !isCore || !upd.available;
+        return { name: v.name, cur: v.version, lat: lat || '—', label: fresh ? s.upToDate : s.updAvailShort, fg: fresh ? c.ok : c.accent, bg: fresh ? c.okSoft : c.accentSoft };
+      });
+      const bk = D['system/backups'] || {};
+      const sched = bk.schedule || {};
+      s.backupPolicy = F(s0.backupPolicy, { h: pad(sched.hour_utc != null ? sched.hour_utc : 3), n: sched.keep || 14 });
+      const bks = bk.items || [];
+      const running = bks.some((b) => b.status === 'running');
+      V.bkRows = bks.slice(0, 6).map((b) => Object.assign({
+        t: fmtFull(b.created_at), kind: b.kind === 'manual' ? s.manual : s.auto, size: b.size ? fmtBytes(b.size) : '—',
+        dl: () => { if (b.status === 'ok') { location.href = '/api/v1/admin/system/backups/' + encodeURIComponent(b.id) + '/download'; flash(s.tDownload); } },
+      }, b.status === 'running' ? st('info', s.backingUp) : b.status === 'ok' ? st('ok', s.resOk) : st('crit', s.backupFailed)));
+      V.backupNow = () => { if (!running) act(() => api('POST', '/admin/system/backups', {}), s.tBackupStarted); };
+      V.backupBusy = running ? 'true' : 'false';
+      V.backupBtn = running ? s.backingUp : s.backupNow;
+      V.hookRows = items('system/webhooks').map((h) => {
+        const okc = h.last_status >= 200 && h.last_status < 300;
+        return Object.assign({
+          url: h.url, ev: (h.events || []).join(', ') || '*',
+          last: h.last_delivery_at ? F(s.lastDelivery, { code: h.last_status ? 'HTTP ' + h.last_status : h.last_error || 'error' }) : s.lastNever,
+          lastFg: !h.last_delivery_at ? c.muted : okc ? c.ok : c.crit,
+          test: () => act(() => api('POST', '/admin/system/webhooks/' + h.id + '/test', {}), s.tHookTest),
+          remove: () => confirmBox(s.cfDelHook, F(s.cfDelHookBody, { name: h.name || h.url }), s.delete, () => act(() => api('DELETE', '/admin/system/webhooks/' + h.id), F(s.tDeleted, { name: h.name || h.url }))),
+        }, sw(!!h.enabled, () => act(() => api('PATCH', '/admin/system/webhooks/' + h.id, { enabled: !h.enabled }), s.saved), h.url));
+      });
+      V.hookEmpty = V.hookRows.length === 0;
+      V.addHook = hookForm;
+      V.keyList = (admin ? items('system/api-keys') : []).filter((k) => !k.revoked_at).map((k) => ({
+        name: k.name, key: (k.prefix || '') + '…', created: fmtDate(k.created_at), scope: (k.scopes || []).join(', '),
+        copy: () => copy(k.prefix || ''),
+        revoke: () => confirmBox(s.cfRevokeKey, F(s.cfRevokeKeyBody, { name: k.name }), s.revoke, () => act(() => api('DELETE', '/admin/system/api-keys/' + k.id), F(s.tKeyRevoked, { name: k.name }))),
+      }));
+      V.keyEmpty = V.keyList.length === 0;
+      V.keyEmptyText = admin ? s.noKeys : s.keysAdminOnly;
+      V.createKey = () => (admin ? tokenForm(true) : flash(s.keysAdminOnly));
+      const mth = { GET: [c.ok, c.okSoft], POST: [c.accent, c.accentSoft], PATCH: [c.warn, c.warnSoft], PUT: [c.warn, c.warnSoft], DELETE: [c.crit, c.critSoft] };
+      const eps = items('system/endpoints');
+      V.endpoints = eps.filter((e) => has(e.path + ' ' + e.summary)).map((e) => ({ m: e.method, p: e.path, d: e.summary, fg: (mth[e.method] || mth.GET)[0], bg: (mth[e.method] || mth.GET)[1] }));
+      V.epCount = eps.length + ' endpoints';
+      V.baseUrl = location.origin + '/api/v1';
+      V.openDocs = () => window.open('/api/docs', '_blank', 'noopener');
+      if (upd.available) {
+        V.updTitle = F(s.updTitle, { v: upd.latest });
+        V.updSub = upd.notes || upd.channel || '';
+      } else {
+        V.updTitle = s.upToDateTitle;
+        V.updSub = upd.error ? (/manifest_url/.test(upd.error) ? s.updNotConfigured : upd.error) : 'Meshport Server ' + (upd.current || status.version || '');
+      }
+      V.updBtn = ST.busy.install ? s.installing : upd.available ? s.installNow : s.upToDate;
+      V.updDisabled = upd.available && admin && !ST.busy.install ? 'false' : 'true';
+      V.installUpdate = () => {
+        if (!upd.available || !admin || ST.busy.install) return;
+        confirmBox(F(s.cfInstall, { v: upd.latest }), s.cfInstallBody, s.install, async () => {
+          set2({ busy: Object.assign({}, ST.busy, { install: true }) });
+          await act(() => api('POST', '/admin/system/update/install', {}), s.tInstalling);
+        });
+      };
+      const sv = D.settings;
+      V.chanSeg = seg([['stable', s.stable], ['beta', s.beta]], sv.update_channel || 'stable', (v) => quickSetting({ update_channel: v }));
+      V.autoSw = sw(!!sv.auto_update, () => quickSetting({ auto_update: !sv.auto_update }), s.autoUpdate);
+      V.retSeg = seg([7, 14, 30, 90].map((d) => [String(d), F(s.days, { n: d })]), String(sv.log_retention_days || 14), (v) => quickSetting({ log_retention_days: Number(v) }));
+      V.regSw = sw(!!sv.open_registration, () => quickSetting({ open_registration: !sv.open_registration }), s.openReg);
+      const accAll = T.accents();
+      const accNames = { jade: s.cJade, terracotta: s.cTerra, rose: s.cRose, olive: s.cOlive, graphite: s.cGraphite };
+      const ak = accentKey();
+      V.swatches = Object.keys(accAll).map((k) => ({
+        label: accNames[k], color: accAll[k].bg, pressed: k === ak ? 'true' : 'false', ring: k === ak ? accAll[k].bg : 'transparent', check: k === ak ? I.check : '',
+        pick: () => quickSetting({ accent: k }),
+      }));
+      V.accentName = accNames[ak];
+      V.openSettings = () => (admin ? settingsForm() : flash(s.adminOnly));
+    }
+    V.checkUpdate = async () => {
+      try {
+        D.update = await GET('system/update');
+        render();
+        flash(D.update.available ? F(s.updTitle, { v: D.update.latest }) : D.update.error ? (/manifest_url/.test(D.update.error) ? s.updNotConfigured : D.update.error) : s.upToDateTitle);
+      } catch (e) { flash(e.message); }
+    };
+    return V;
+  }
+
+  // ---------------------------------------------------------------- mapping modal
+  function openMapForm(m) {
+    const s = S();
+    const nodes = items('frp/nodes');
+    if (!nodes.length) { flash(s.noNodes); return; }
+    if (m) {
+      const web = m.proto === 'http' || m.proto === 'https';
+      set({ overlay: 'map', mf: { id: m.id, name: m.name, device: m.device_id, node: m.node_id, proto: m.proto, lip: m.local_ip, lport: String(m.local_port),
+        remote: web ? (m.domains || [])[0] || m.subdomain || '' : m.proto === 'stcp' || m.proto === 'xtcp' ? '' : String(m.remote_port || ''), err: '' } });
+      return;
+    }
+    const devs = items('devices').filter((d) => d.status === 'active' && (d.level === 'member' || d.level === 'admin'));
+    if (!devs.length) { flash(s.lvMemberDesc); return; }
+    set({ overlay: 'map', mf: { id: null, name: '', device: devs[0].id, node: nodes[0].id, proto: 'tcp', lip: '127.0.0.1', lport: '', remote: '', err: '' } });
+  }
+  async function saveMap() {
+    const s = S();
+    const f = ST.mf;
+    if (!f || f.busy) return;
+    if (!String(f.name).trim() || !String(f.lport).trim()) { set({ mf: Object.assign({}, f, { err: s.tNeedFields }) }); return; }
+    const web = f.proto === 'http' || f.proto === 'https';
+    const secret = f.proto === 'stcp' || f.proto === 'xtcp';
+    const body = { name: f.name.trim(), node: f.node, proto: f.proto, local_ip: f.lip.trim() || '127.0.0.1', local_port: num(f.lport, 0) };
+    if (web) body.domains = f.remote.trim() ? [f.remote.trim()] : [];
+    else if (secret) { if (f.remote.trim()) body.secret_key = f.remote.trim(); } else body.remote_port = num(f.remote, 0);
+    set({ mf: Object.assign({}, f, { busy: true, err: '' }) });
+    try {
+      if (f.id) await api('PATCH', '/admin/frp/mappings/' + f.id, body);
+      else await api('POST', '/admin/frp/mappings', Object.assign({ device: f.device }, body));
+      set({ overlay: null, mf: null });
+      flash(F(f.id ? s.tMapSaved : s.tMapCreated, { name: body.name }));
+      reloadSoon(100);
+    } catch (e) {
+      set({ mf: Object.assign({}, ST.mf, { busy: false, err: e.message }) });
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (ST.cf) set({ cf: null });
+    else if (ST.overlay) closeOverlay();
+  });
+  boot();
+})();

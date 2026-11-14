@@ -106,8 +106,20 @@
 
 控制台在 `internal/console/web`：無框架、無外部相依的單頁應用，以 `go:embed` 編進 meshportd，在 `/` 提供（`web_dir` 可改用其他建置或設為 `off` 停用）。
 
+介面沿用已定稿的控制台設計稿（Claude Design 上的 `Admin.dc.html`），不另外重畫：
+
+| 檔案 | 內容 |
+|---|---|
+| `admin.tpl.html` | 設計稿的版面標記原樣保留；只把示範數值換成資料綁定，並補上真實 API 需要的少數按鈕與通用表單視窗 |
+| `theme.js` | 設計稿的配色、5 種主題色、圖示與繁中／日文／英文字串，逐字複製 |
+| `strings.js` | 設計稿沒有的介面字串（登入、表單、設定），同樣有三種語言 |
+| `dc.js` | 約 200 行的模板執行器：`{{綁定}}`、`<sc-for>`、`<sc-if>`，以差異更新 DOM，所以每 2 秒的即時刷新不會打斷輸入 |
+| `app.js` | 對應 API、即時串流與各項操作，產生模板需要的資料 |
+
+模板裡的樣式寫在 `data-s`、事件寫在 `data-on-*`，由 `dc.js` 透過 CSSOM 套用，因此仍符合禁止 inline style／script 的 CSP。所有主控台檔案都以 `Cache-Control: no-cache` 加內容 ETag 回應，升級後不會出現新模板配舊腳本。
+
 - 登入後以 HttpOnly、SameSite=Strict 的 session cookie 呼叫 `/api/v1`，所有寫入都帶 `X-Requested-With`。
-- 回應標頭有嚴格的 CSP（只允許同源腳本與樣式）、`X-Frame-Options: DENY`；伺服器回來的文字一律以 textContent 插入。
+- 回應標頭有嚴格的 CSP（只允許同源腳本與樣式）、`X-Frame-Options: DENY`；伺服器回來的文字一律以文字節點插入，不會被當成 HTML。
 - 即時資料走 `WS /admin/stream`：`metrics.tick` 直接更新數字與圖表，其他事件會觸發目前頁面重新載入。
 - 依角色顯示操作：檢視者唯讀，操作員可以操作裝置、映射、審批，管理員才看得到節點、使用者、ACL、系統設定等。
 - 要求 MFA 時，未啟用的使用者登入後會先進入設定流程。註冊連結 `/enroll#<註冊碼>` 是不需登入的說明頁。

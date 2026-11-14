@@ -9,6 +9,7 @@ Meshport 是私有通訊平台，包含：
 |---|---|
 | `cmd/meshportd`、`internal/{api,hub,store,frp,…}` | 伺服器端 |
 | `internal/console/web` | 網頁控制台（內嵌在 meshportd，開 `https://<伺服器>/` 即可使用） |
+| `scripts/console-template` | 從控制台設計稿（`Admin.dc.html`）產生 `admin.tpl.html` 的腳本 |
 | `internal/agent` | 用戶端核心，以及嵌入的 Web UI（`internal/agent/web`） |
 | `cmd/meshport` | 桌面端（Windows/Linux，無 CGO） |
 | `mobile/meshcore`、`android/` | Android：gomobile 綁定與 Kotlin App |
