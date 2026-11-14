@@ -809,7 +809,7 @@ func (s *Server) hRequestGrant(c *Ctx) error {
 		req.Duration = "perm"
 	}
 	if _, ok := validDurations[req.Duration]; !ok {
-		return badRequest("duration must be 24h, 7d, 30d, 90d or perm")
+		return badRequest("duration must be 1h, 6h, 24h, 7d, 30d or perm")
 	}
 	target, err := s.db.DeviceByID(req.Target)
 	if errors.Is(err, store.ErrNotFound) {

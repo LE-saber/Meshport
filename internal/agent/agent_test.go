@@ -50,6 +50,22 @@ func TestSealOpen(t *testing.T) {
 	}
 }
 
+func TestClientTransportTracksSavedServerKey(t *testing.T) {
+	a := newTestAgent(t)
+	pin := "sha256/" + base64.StdEncoding.EncodeToString(make([]byte, 32))
+	_ = a.st.update(func(s *State) { s.Server = "https://mesh.example"; s.ServerPin = pin })
+	first, second := a.newClient(), a.newClient()
+	if first.HTTP.Transport != second.HTTP.Transport {
+		t.Fatal("requests must reuse the pinned transport")
+	}
+	_ = a.st.update(func(s *State) {
+		s.ServerPin = "sha256/" + base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
+	})
+	if a.newClient().HTTP.Transport == first.HTTP.Transport {
+		t.Fatal("changed server identity reused the old trust")
+	}
+}
+
 func TestFileCipherRoundTrip(t *testing.T) {
 	for _, size := range []int64{0, 1, fileChunk - 1, fileChunk, fileChunk + 1, 3*fileChunk + 5} {
 		key, nonce := newFileKey()

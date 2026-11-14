@@ -3508,7 +3508,7 @@
               }
             }
           },
-          "description": "{target, level, reason, duration: 24h|7d|30d|90d|perm}"
+          "description": "{target, level, reason, duration: 1h|6h|24h|7d|30d|perm}"
         },
         "responses": {
           "200": {

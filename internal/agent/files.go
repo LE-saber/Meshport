@@ -424,7 +424,9 @@ func max64(a, b int64) int64 {
 // rawDo performs a non-JSON request with the device token.
 func (a *Agent) rawDo(ctx context.Context, method, path string, hdr http.Header, body []byte) (*http.Response, error) {
 	cl := a.newClient()
-	cl.HTTP.Timeout = 0 // large transfers are governed by the caller's context
+	httpClient := *cl.HTTP
+	httpClient.Timeout = 0 // large transfers are governed by the caller's context
+	cl.HTTP = &httpClient  // keep the REST client's timeout unchanged
 	do := func() (*http.Response, error) {
 		var rd io.Reader
 		if body != nil {

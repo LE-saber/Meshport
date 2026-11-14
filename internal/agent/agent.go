@@ -61,6 +61,8 @@ type Agent struct {
 	frpc   *frpcManager
 
 	mu       sync.Mutex
+	sdk      *client.Client // transport reused for the saved server identity
+	sdkPin   string
 	token    string
 	conn     *client.Conn
 	connErr  string
@@ -306,13 +308,19 @@ func (a *Agent) apiOnce(ctx context.Context, method, path string, body, out any)
 // newClient returns an SDK client bound to the saved identity and token.
 func (a *Agent) newClient() *client.Client {
 	s := a.st.get()
-	cl := client.NewWithPin(s.Server, s.ServerPin)
-	cl.DeviceID = s.DeviceID
-	cl.Key = s.identity()
 	a.mu.Lock()
+	if a.sdk == nil || a.sdk.BaseURL != s.Server || a.sdkPin != s.ServerPin {
+		if a.sdk != nil {
+			a.sdk.HTTP.CloseIdleConnections()
+		}
+		a.sdk, a.sdkPin = client.NewWithPin(s.Server, s.ServerPin), s.ServerPin
+	}
+	cl := *a.sdk
 	cl.Token = a.token
 	a.mu.Unlock()
-	return cl
+	cl.DeviceID = s.DeviceID
+	cl.Key = s.identity()
+	return &cl
 }
 
 func (a *Agent) currentConn() *client.Conn {
