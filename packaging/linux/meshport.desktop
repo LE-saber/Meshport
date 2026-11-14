@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Meshport
+GenericName=Private mesh messenger
+Comment=端到端加密的 P2P 傳訊、檔案傳輸與 FRP 映射
+Exec=meshport
+Icon=meshport
+Terminal=false
+Categories=Network;InstantMessaging;FileTransfer;
+StartupWMClass=Meshport

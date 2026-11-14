@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Meshport</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="boot" class="boot"><div class="spinner"></div></div>
+
+<div id="setup" class="setup" hidden></div>
+
+<div id="app" class="app" hidden>
+  <nav class="nav" id="nav">
+    <div class="brand"><img src="icon.svg" alt=""><span>Meshport</span></div>
+    <button data-view="chat" class="navbtn"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg><span>訊息</span><b class="badge" id="unread" hidden></b></button>
+    <button data-view="files" class="navbtn"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v4h4"/></svg><span>檔案</span></button>
+    <button data-view="frp" class="navbtn"><svg viewBox="0 0 24 24"><path d="M4 12h6M14 12h6M10 8l4 4-4 4M4 6v12M20 6v12"/></svg><span>映射</span></button>
+    <button data-view="devices" class="navbtn"><svg viewBox="0 0 24 24"><path d="M3 5h12v9H3zM7 18h4M17 8h4v11h-4z"/></svg><span>裝置</span></button>
+    <button data-view="settings" class="navbtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span>設定</span></button>
+    <div class="nav-foot" id="statusPill"></div>
+  </nav>
+  <main id="view" class="view"></main>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

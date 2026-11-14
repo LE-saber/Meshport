@@ -1,0 +1,8 @@
+# Optional: Caddy in front of meshportd (tls.mode: off, listen 127.0.0.1:8080).
+# Caddy obtains certificates automatically and proxies WebSockets transparently.
+# Keep trusted_proxies in meshport.yaml containing 127.0.0.1 so client IPs are correct.
+
+mesh.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}

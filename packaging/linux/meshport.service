@@ -1,0 +1,14 @@
+# systemd user unit for running Meshport without a desktop session
+# (servers, headless boxes). Install with:  ./install.sh --service
+[Unit]
+Description=Meshport client (headless)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/meshport --headless
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

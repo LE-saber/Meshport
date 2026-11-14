@@ -1,0 +1,4221 @@
+{
+  "components": {
+    "schemas": {
+      "Error": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "description": "mps_ console session, mpd_ device token, mpt_ personal API token, mpk_ service key",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Unified API for the Meshport management console, desktop and mobile clients. All bodies are JSON. Errors are {\"error\":{\"code\",\"message\"}}. The device WebSocket protocol is documented in docs/API.md.",
+    "title": "Meshport API",
+    "version": "1.0.0-dev"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/docs": {
+      "get": {
+        "operationId": "get_api_docs",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Human-readable API reference",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/admin/alerts": {
+      "get": {
+        "operationId": "get_api_v1_admin_alerts",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Alerts (?status, category, severity)",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/alerts/{id}/ack": {
+      "post": {
+        "operationId": "post_api_v1_admin_alerts_By_id_ack",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Acknowledge an alert",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/alerts/{id}/resolve": {
+      "post": {
+        "operationId": "post_api_v1_admin_alerts_By_id_resolve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Resolve an alert",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "operationId": "get_api_v1_admin_audit",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Audit trail of every change",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/devices": {
+      "get": {
+        "operationId": "get_api_v1_admin_devices",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List devices (?q, state=online|offline|disabled|pending|banned, group, user, level)",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/devices/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_devices_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a device",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      },
+      "get": {
+        "operationId": "get_api_v1_admin_devices_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Device detail with sessions, mappings, grants, logins",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_devices_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name?, kind?, level?, group?, user?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit name, kind, level, group, owner",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/approve": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Approve a pending registration",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/ban": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_ban",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{reason?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ban a device",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/command": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_command",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, args?, timeout_s?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Send a remote-management command and wait for the result",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/disable": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_disable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Disable a device (reversible)",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/enable": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_enable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Re-enable a disabled device",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/reject": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Reject (delete) a pending registration",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/rotate-key": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_rotate_key",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Require the device to rotate its key",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/devices/{id}/unban": {
+      "post": {
+        "operationId": "post_api_v1_admin_devices_By_id_unban",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Lift a ban",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/enroll-tokens": {
+      "get": {
+        "operationId": "get_api_v1_admin_enroll_tokens",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Active enrollment tokens",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "any console user"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_enroll_tokens",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{note?, user?, group?, level?, auto_approve?, uses?, ttl_hours?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create an enrollment token (\"register new device\")",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/admin/enroll-tokens/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_enroll_tokens_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete an enrollment token",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/failures": {
+      "get": {
+        "operationId": "get_api_v1_admin_failures",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Connection failures (?kind=p2p|relay|frp|auth)",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/frp/clients": {
+      "get": {
+        "operationId": "get_api_v1_admin_frp_clients",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Connected frpc clients",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/frp/mappings": {
+      "get": {
+        "operationId": "get_api_v1_admin_frp_mappings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "All mappings (?node, device, proto, state, q)",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_frp_mappings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{device, name, node, proto: tcp|udp|http|https|stcp|xtcp, local_ip?, local_port, remote_port?, domains?[], subdomain?, secret_key?, use_encryption?, use_compression?, bandwidth_limit?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a mapping for a device",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/frp/mappings/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_frp_mappings_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a mapping",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_frp_mappings_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, node, proto: tcp|udp|http|https|stcp|xtcp, local_ip?, local_port, remote_port?, domains?[], subdomain?, secret_key?, use_encryption?, use_compression?, bandwidth_limit?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit a mapping",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/frp/mappings/{id}/start": {
+      "post": {
+        "operationId": "post_api_v1_admin_frp_mappings_By_id_start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Start a mapping",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/frp/mappings/{id}/stop": {
+      "post": {
+        "operationId": "post_api_v1_admin_frp_mappings_By_id_stop",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Stop a mapping (enforced on frps)",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/frp/nodes": {
+      "get": {
+        "operationId": "get_api_v1_admin_frp_nodes",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "frps nodes with live stats",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_frp_nodes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, region?, public_addr, bind_port, vhost_http_port?, vhost_https_port?, subdomain_host?, allow_ports?, dashboard_addr?, dashboard_user?, dashboard_password?, managed?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Add an frps node (managed locally or remote)",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/frp/nodes/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_frp_nodes_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Remove an frps node and its mappings",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console admin / API token admin"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_frp_nodes_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, region?, public_addr, bind_port, vhost_http_port?, vhost_https_port?, subdomain_host?, allow_ports?, dashboard_addr?, dashboard_user?, dashboard_password?, managed?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit an frps node",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/frp/nodes/{id}/config": {
+      "get": {
+        "operationId": "get_api_v1_admin_frp_nodes_By_id_config",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "frps.toml for this node (includes the plugin hook)",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/frp/nodes/{id}/restart": {
+      "post": {
+        "operationId": "post_api_v1_admin_frp_nodes_By_id_restart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Restart a managed frps",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/frp/stop-all": {
+      "post": {
+        "operationId": "post_api_v1_admin_frp_stop_all",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{node?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Stop every mapping (optionally on one node)",
+        "tags": [
+          "frp"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/grants": {
+      "get": {
+        "operationId": "get_api_v1_admin_grants",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Level requests (?status)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_grants",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{target, level, reason?, duration?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Grant a level directly (optionally temporary)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/grants/{id}/approve": {
+      "post": {
+        "operationId": "post_api_v1_admin_grants_By_id_approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{duration?, note?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Approve a request (applies the level)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/grants/{id}/reject": {
+      "post": {
+        "operationId": "post_api_v1_admin_grants_By_id_reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{note?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Reject a request",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/grants/{id}/revoke": {
+      "post": {
+        "operationId": "post_api_v1_admin_grants_By_id_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke an approved grant (restores previous level)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/groups": {
+      "get": {
+        "operationId": "get_api_v1_admin_groups",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Device groups",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_groups",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, description?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a group",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/groups/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_groups_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a group",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_groups_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name?, description?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rename / describe a group",
+        "tags": [
+          "devices"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/levels": {
+      "get": {
+        "operationId": "get_api_v1_admin_levels",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Level definitions with device counts",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/logs": {
+      "get": {
+        "operationId": "get_api_v1_admin_logs",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Service logs (?level, source, q, before, limit)",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/metrics": {
+      "get": {
+        "operationId": "get_api_v1_admin_metrics",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Time series (?range=live|5m|1h|24h|7d, keys, points)",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/metrics/p2p": {
+      "get": {
+        "operationId": "get_api_v1_admin_metrics_p2p",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "P2P success rate per hour",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "operationId": "get_api_v1_admin_overview",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Dashboard: devices, sessions, bandwidth, FRP, resources, pending, alerts",
+        "tags": [
+          "overview"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/security/acl": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_acl",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Allow / deny lists",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_security_acl",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{action: allow|deny, cidr, note?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Add an allow or deny rule",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/security/acl/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_security_acl_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Remove a rule",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/security/bans": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_bans",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Banned devices",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/security/keys": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_keys",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Device key status and age",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/security/logins": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_logins",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Login records (?abnormal=1, failed=1, kind, q)",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/security/mfa": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_mfa",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "MFA policy and enrollment",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "put": {
+        "operationId": "put_api_v1_admin_security_mfa",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{required}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Require MFA for console users",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/security/mfa/remind": {
+      "post": {
+        "operationId": "post_api_v1_admin_security_mfa_remind",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{users?[]}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Remind users without MFA (emits user.mfa_reminder)",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/security/tokens": {
+      "get": {
+        "operationId": "get_api_v1_admin_security_tokens",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Personal API tokens",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "any console user"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_security_tokens",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, scopes[read|write|admin], ttl_days?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a personal API token",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/admin/security/tokens/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_security_tokens_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke an API token or key",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/admin/security/unblock": {
+      "post": {
+        "operationId": "post_api_v1_admin_security_unblock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{ip}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Lift a temporary brute-force block",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/sessions": {
+      "get": {
+        "operationId": "get_api_v1_admin_sessions",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Communication sessions (?mode, path, state, device, q, include_closed)",
+        "tags": [
+          "comms"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/sessions/{id}": {
+      "get": {
+        "operationId": "get_api_v1_admin_sessions_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "One session",
+        "tags": [
+          "comms"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/sessions/{id}/disconnect": {
+      "post": {
+        "operationId": "post_api_v1_admin_sessions_By_id_disconnect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ask both devices to close the session",
+        "tags": [
+          "comms"
+        ],
+        "x-auth": "console operator+ / API token write"
+      }
+    },
+    "/api/v1/admin/stream": {
+      "get": {
+        "operationId": "get_api_v1_admin_stream",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Console live event WebSocket (?events=filter)",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/api-keys": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_api_keys",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Service API keys",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_system_api_keys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, scopes[], ttl_days?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a service API key",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/api-keys/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_system_api_keys_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a service API key",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/backups": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_backups",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Backups and schedule",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_system_backups",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Back up now",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/backups/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_system_backups_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a backup",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/backups/{id}/download": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_backups_By_id_download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Download a backup",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/db": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_db",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Database status (?check=1 runs quick_check)",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/endpoints": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_endpoints",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Route table (for the API docs card)",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/services/{name}/restart": {
+      "post": {
+        "operationId": "post_api_v1_admin_system_services_By_name_restart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Restart hub or a managed frps (frps:<node>)",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/settings": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_settings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Runtime settings",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_system_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{console_name?, open_registration?, registration_approval?, ...}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change runtime settings (partial)",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/status": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_status",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Service status",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/update": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_update",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Check for updates on the configured channel",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/update/install": {
+      "post": {
+        "operationId": "post_api_v1_admin_system_update_install",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Install a signed update and restart",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/versions": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_versions",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Component versions",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    },
+    "/api/v1/admin/system/webhooks": {
+      "get": {
+        "operationId": "get_api_v1_admin_system_webhooks",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Webhooks",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_system_webhooks",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{url, name?, events?[], enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a webhook (returns its signing secret)",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/webhooks/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_system_webhooks_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a webhook",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_system_webhooks_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{url?, name?, events?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit / enable / disable a webhook",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/system/webhooks/{id}/test": {
+      "post": {
+        "operationId": "post_api_v1_admin_system_webhooks_By_id_test",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Send a test event",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "get_api_v1_admin_users",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Users with roles, MFA and device levels",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      },
+      "post": {
+        "operationId": "post_api_v1_admin_users",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{username, password?, role, display_name?, email?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a user (password generated if omitted)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_admin_users_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a user",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console admin / API token admin"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_admin_users_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{role?, disabled?, password?, display_name?, email?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit role, disable, reset password",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/admin/users/{id}/reset-mfa": {
+      "post": {
+        "operationId": "post_api_v1_admin_users_By_id_reset_mfa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Remove a user's TOTP enrollment",
+        "tags": [
+          "security"
+        ],
+        "x-auth": "console admin / API token admin"
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "post_api_v1_auth_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{username, password, totp?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Console login (password, plus TOTP when enabled)",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "post_api_v1_auth_logout",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "End the current console session",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "get_api_v1_auth_me",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Current principal and console preferences",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/auth/mfa/disable": {
+      "post": {
+        "operationId": "post_api_v1_auth_mfa_disable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{code}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Disable TOTP (requires a current code)",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/auth/mfa/enable": {
+      "post": {
+        "operationId": "post_api_v1_auth_mfa_enable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{code}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Confirm TOTP enrollment with a code",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/auth/mfa/setup": {
+      "post": {
+        "operationId": "post_api_v1_auth_mfa_setup",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Start TOTP enrollment; returns secret and otpauth URI",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "operationId": "post_api_v1_auth_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{current, new}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Change own password (signs out other sessions)",
+        "tags": [
+          "auth"
+        ],
+        "x-auth": "any console user"
+      }
+    },
+    "/api/v1/devices/auth/challenge": {
+      "post": {
+        "operationId": "post_api_v1_devices_auth_challenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{device_id}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Get a nonce to sign for device login",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/devices/auth/login": {
+      "post": {
+        "operationId": "post_api_v1_devices_auth_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{device_id, nonce, signature}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Exchange a signed nonce for a device token",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/devices/register": {
+      "post": {
+        "operationId": "post_api_v1_devices_register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, os, kind, pubkey, box_pubkey?, ts, sig, enroll_token | username+password(+totp), lan_ip?, client_version?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Register a device with an ed25519 identity key",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/files": {
+      "get": {
+        "operationId": "get_api_v1_files",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Relay files sent or received by this device",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "post": {
+        "operationId": "post_api_v1_files",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{to, name, size, sha256}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a resumable relay upload",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/files/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_files_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a relay file",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "get": {
+        "operationId": "get_api_v1_files_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Upload/download status (Upload-Offset header)",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_files_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Append a chunk (header Upload-Offset, raw body)",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/files/{id}/content": {
+      "get": {
+        "operationId": "get_api_v1_files_By_id_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Download a relay file (supports Range)",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/frp/nodes": {
+      "get": {
+        "operationId": "get_api_v1_frp_nodes",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "frps nodes available for publishing services",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token or console viewer+"
+      }
+    },
+    "/api/v1/grants": {
+      "post": {
+        "operationId": "post_api_v1_grants",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{target, level, reason, duration: 24h|7d|30d|90d|perm}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Request a level for another device (admin-level devices)",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/device": {
+      "get": {
+        "operationId": "get_api_v1_me_device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "This device",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_me_device",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name?, os?, lan_ip?, nat_type?, client_version?, box_pubkey?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update name / OS / LAN IP / NAT type / client version / box key",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/device/rotate-key": {
+      "post": {
+        "operationId": "post_api_v1_me_device_rotate_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{new_pubkey, old_sig, new_sig}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rotate the identity key (signed by old and new key)",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/frpc": {
+      "get": {
+        "operationId": "get_api_v1_me_frpc",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Generated frpc.toml per node (run one frpc per node)",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/frpc/{node}": {
+      "get": {
+        "operationId": "get_api_v1_me_frpc_By_node",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Generated frpc.toml for one node (text/toml)",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/grants": {
+      "get": {
+        "operationId": "get_api_v1_me_grants",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Level requests made by or for this device",
+        "tags": [
+          "access"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/mappings": {
+      "get": {
+        "operationId": "get_api_v1_me_mappings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "This device's FRP mappings",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "post": {
+        "operationId": "post_api_v1_me_mappings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, node, proto: tcp|udp|http|https|stcp|xtcp, local_ip?, local_port, remote_port?, domains?[], subdomain?, secret_key?, use_encryption?, use_compression?, bandwidth_limit?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a mapping (member level or higher)",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/mappings/{id}": {
+      "delete": {
+        "operationId": "delete_api_v1_me_mappings_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a mapping",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "patch": {
+        "operationId": "patch_api_v1_me_mappings_By_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{name, node, proto: tcp|udp|http|https|stcp|xtcp, local_ip?, local_port, remote_port?, domains?[], subdomain?, secret_key?, use_encryption?, use_compression?, bandwidth_limit?, enabled?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Edit a mapping",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/mappings/{id}/start": {
+      "post": {
+        "operationId": "post_api_v1_me_mappings_By_id_start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Start a mapping",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/me/mappings/{id}/stop": {
+      "post": {
+        "operationId": "post_api_v1_me_mappings_By_id_stop",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Stop a mapping",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/messages": {
+      "get": {
+        "operationId": "get_api_v1_messages",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Fetch relay messages queued for this device",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      },
+      "post": {
+        "operationId": "post_api_v1_messages",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{to, mode: relay|auto, cid, ct, body(base64 ciphertext), sid?}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Relay a message over REST (same rules as msg.send)",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/messages/receipts": {
+      "post": {
+        "operationId": "post_api_v1_messages_receipts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "{ids[], kind: delivered|read}"
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Acknowledge messages as delivered or read",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "get_api_v1_openapi.json",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "OpenAPI 3.1 description of this API",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/api/v1/peers": {
+      "get": {
+        "operationId": "get_api_v1_peers",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Discover devices this device may see and message",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/rtc/ice-servers": {
+      "get": {
+        "operationId": "get_api_v1_rtc_ice_servers",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "STUN/TURN servers with short-lived TURN credentials",
+        "tags": [
+          "messaging"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/api/v1/ws": {
+      "get": {
+        "operationId": "get_api_v1_ws",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Device WebSocket: presence, relay, signalling, telemetry, commands (see pkg/proto)",
+        "tags": [
+          "device"
+        ],
+        "x-auth": "device token (mpd_)"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "get_healthz",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Liveness probe",
+        "tags": [
+          "system"
+        ],
+        "x-auth": "none"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "get_metrics",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Prometheus metrics (use an API token with read scope)",
+        "tags": [
+          "monitor"
+        ],
+        "x-auth": "console viewer+ / API token read"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Console authentication",
+      "name": "auth"
+    },
+    {
+      "description": "Devices (client API)",
+      "name": "device"
+    },
+    {
+      "description": "Messaging, files and P2P",
+      "name": "messaging"
+    },
+    {
+      "description": "Access and approvals",
+      "name": "access"
+    },
+    {
+      "description": "Overview",
+      "name": "overview"
+    },
+    {
+      "description": "Device management",
+      "name": "devices"
+    },
+    {
+      "description": "Communication",
+      "name": "comms"
+    },
+    {
+      "description": "FRP",
+      "name": "frp"
+    },
+    {
+      "description": "Security",
+      "name": "security"
+    },
+    {
+      "description": "Monitoring and logs",
+      "name": "monitor"
+    },
+    {
+      "description": "System and API",
+      "name": "system"
+    }
+  ]
+}

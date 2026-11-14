@@ -1,0 +1,37 @@
+[Unit]
+Description=Meshport server (identity, devices, relay, P2P signalling, FRP control, console API)
+Documentation=file:///opt/meshport/docs/DEPLOY.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meshport
+Group=meshport
+ExecStart=/opt/meshport/bin/meshportd serve -config /etc/meshport/meshport.yaml
+Restart=always
+RestartSec=2
+# frps (supervised child) and ACME need low ports
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+LimitNOFILE=65536
+
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+# data, config, and the bin directory (console "install update" replaces the binary)
+ReadWritePaths=/var/lib/meshport /etc/meshport /opt/meshport/bin
+
+[Install]
+WantedBy=multi-user.target

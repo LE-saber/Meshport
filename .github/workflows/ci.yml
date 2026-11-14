@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Vet and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet (Linux, Windows, Android targets)
+        run: |
+          test -z "$(gofmt -l cmd internal pkg mobile)" || { gofmt -l cmd internal pkg mobile; echo "run gofmt"; exit 1; }
+          go vet ./...
+          GOOS=windows go vet ./cmd/meshport/ ./internal/agent/ ./pkg/...
+          GOOS=android GOARCH=arm64 go vet ./mobile/meshcore/
+
+      - name: Check UI script
+        run: node --check internal/agent/web/app.js
+
+      - name: Build frps/frpc for end-to-end tests
+        run: make frp-bins
+
+      - name: Test with race detector
+        env:
+          MESHPORT_FRPS: ${{ github.workspace }}/bin/frps
+          MESHPORT_FRPC: ${{ github.workspace }}/bin/frpc
+        run: go test -race -count=1 ./...
+
+  desktop-build:
+    name: Desktop cross-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build Linux and Windows binaries
+        run: make desktop VERSION=ci-${{ github.run_number }}
