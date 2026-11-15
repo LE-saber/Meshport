@@ -97,7 +97,7 @@ async function api(method, path, body) {
   let data = null;
   try { data = await r.json(); } catch (_) { /* empty */ }
   if (r.status === 401) { showUnauthorized(); throw new Error('unauthorized'); }
-  if (!r.ok) throw new Error((data && data.error) || ('HTTP ' + r.status));
+  if (!r.ok) throw new Error(mpText((data && data.error) || ('HTTP ' + r.status)));
   return data;
 }
 const dev = (method, path, body) => api(method, '/local/api/' + path, body);

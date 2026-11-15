@@ -52,7 +52,7 @@ func DefaultSettings() Settings {
 		AbnormalFailLimit:    5,
 		Theme:                "system",
 		Accent:               "jade",
-		Language:             "zh-TW",
+		Language:             "en",
 	}
 }
 

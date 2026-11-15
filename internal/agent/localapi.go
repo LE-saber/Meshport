@@ -359,8 +359,8 @@ func (a *Agent) hPatchSettings(w http.ResponseWriter, r *http.Request) (any, err
 	if req.Mode != nil && !validMode(*req.Mode) {
 		return nil, errors.New("mode 必須是 auto、p2p 或 relay")
 	}
-	if req.Language != nil && *req.Language != "zh-TW" && *req.Language != "zh-CN" {
-		return nil, errors.New("language must be zh-TW or zh-CN")
+	if req.Language != nil && *req.Language != "en" && *req.Language != "zh-TW" && *req.Language != "zh-CN" {
+		return nil, errors.New("language must be en, zh-TW or zh-CN")
 	}
 	if req.DownloadDir != nil {
 		d := strings.TrimSpace(*req.DownloadDir)

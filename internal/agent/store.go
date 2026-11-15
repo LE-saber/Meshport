@@ -24,7 +24,7 @@ import (
 // ---------- persisted state ----------
 
 type Settings struct {
-	Language    string            `json:"language"`     // zh-TW | zh-CN
+	Language    string            `json:"language"`     // en | zh-TW | zh-CN
 	Mode        string            `json:"mode"`         // default delivery mode: auto | p2p | relay
 	PeerModes   map[string]string `json:"peer_modes"`   // per-conversation override
 	DownloadDir string            `json:"download_dir"` // where received files go
@@ -110,7 +110,7 @@ func loadState(path string) (*stateStore, error) {
 	b, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		st.s.Settings = Settings{Mode: "auto", FRPC: true, Notify: true, Theme: "system"}
+		st.s.Settings = Settings{Language: "en", Mode: "auto", FRPC: true, Notify: true, Theme: "system"}
 	case err != nil:
 		return nil, err
 	default:
