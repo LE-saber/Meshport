@@ -1,12 +1,12 @@
 <sc-if value="{{!authenticated}}">
 <main class="login-screen"><form class="login-card" onSubmit="{{login}}">
-<div class="brand-mark">M</div><h1>Meshport</h1><p>登入伺服器管理控制台</p>
-<sc-if value="{{checking}}"><p role="status">正在检查会话…</p></sc-if>
-<label>用户名<input name="username" autoComplete="username" required value="{{loginUser}}" onChange="{{setLoginUser}}"></label>
-<label>密码<input name="password" type="password" autoComplete="current-password" required value="{{loginPassword}}" onChange="{{setLoginPassword}}"></label>
-<label>验证器验证码（已启用 MFA 时填写）<input name="totp" inputMode="numeric" autoComplete="one-time-code" value="{{loginTotp}}" onChange="{{setLoginTotp}}"></label>
+<div class="brand-mark">M</div><h1>Meshport</h1><p>Sign in to the Meshport server console</p>
+<sc-if value="{{checking}}"><p role="status">Checking session…</p></sc-if>
+<label>Username<input name="username" autoComplete="username" required value="{{loginUser}}" onChange="{{setLoginUser}}"></label>
+<label>Password<input name="password" type="password" autoComplete="current-password" required value="{{loginPassword}}" onChange="{{setLoginPassword}}"></label>
+<label>Authenticator code (if MFA is enabled)<input name="totp" inputMode="numeric" autoComplete="one-time-code" value="{{loginTotp}}" onChange="{{setLoginTotp}}"></label>
 <sc-if value="{{hasError}}"><p class="error" role="alert">{{error}}</p></sc-if>
-<button class="primary" type="submit" disabled="{{busy}}">登入</button>
-<p class="muted">通过 SSH 转发连接私有管理服务。</p>
+<button class="primary" type="submit" disabled="{{busy}}">Sign in</button>
+<p class="muted">Connect to your private administration service through SSH forwarding.</p>
 </form></main>
 </sc-if>
