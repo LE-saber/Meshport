@@ -288,6 +288,7 @@ function showApp() {
 }
 
 function go(view) {
+  closeKeyView();
   S.view = view;
   history.replaceState(null, '', '#' + view);
   for (const b of document.querySelectorAll('.navbtn')) b.classList.toggle('on', b.dataset.view === view);
@@ -320,6 +321,7 @@ function renderStatus() {
 
 // ---------- setup ----------
 function renderSetup() {
+  closeKeyView();
   $('#boot').hidden = true;
   $('#app').hidden = true;
   const s = $('#setup');
@@ -329,9 +331,8 @@ function renderSetup() {
     s.replaceChildren(h('div', { class: 'setup-card' },
       h('h1', null, h('img', { src: 'icon.svg', alt: '' }), mpText('等待核准')),
       h('p', { class: 'muted' }, mpText('已向 '), h('b', null, st.server), mpText(' 送出註冊。管理員在控制台核准後，這台裝置會自動上線。')),
-      h('dl', { class: 'kv' }, h('dt', null, mpText('裝置名稱')), h('dd', null, st.device.name), h('dt', null, mpText('裝置 ID')), h('dd', { class: 'mono' }, st.device.id),
-        h('dt', null, mpText('金鑰指紋')), h('dd', { class: 'mono' }, st.device.fingerprint)),
-      h('p', { class: 'small muted' }, mpText('請管理員比對上面的金鑰指紋，確認是這台裝置。')),
+      h('dl', { class: 'kv' }, h('dt', null, mpText('裝置名稱')), h('dd', null, st.device.name), h('dt', null, mpText('裝置 ID')), h('dd', { class: 'mono' }, st.device.id)),
+      h('button', {class:'btn', type:'button', onclick:openKeyView},mpText('查看自己的密鑰')),
       h('div', { class: 'row' }, h('div', { class: 'spinner', style: 'width:18px;height:18px;border-width:2px' }), h('span', { class: 'muted grow' }, mpText('每 15 秒自動檢查')),
         h('button', { class: 'btn', onclick: () => guard(() => api('POST', '/local/reconnect')) }, mpText('立即檢查')),
         h('button', { class: 'btn danger', onclick: resetDevice }, mpText('取消並重設')))));
@@ -384,7 +385,7 @@ function renderSetup() {
   } },
   h('h1', null, h('img', { src: 'icon.svg', alt: '' }), mpText('連線到 Meshport')),
   mpLanguagePicker(),
-  h('p', { class: 'muted', style: 'margin:0' }, mpText('這台裝置會產生自己的 Ed25519 身分金鑰和端到端加密金鑰，私鑰不會離開裝置。')),
+  h('p', { class: 'muted', style: 'margin:0' }, mpText('這台裝置會自動建立安全連線，使用註冊碼或二維碼即可加入。')),
   h('label', { class: 'field' }, h('span', null, mpText('伺服器位址')), f.server),
   h('label', { class: 'field' }, h('span', null, mpText('裝置名稱')), f.name),
   seg, enrollBox, userBox, err, submit);
@@ -801,8 +802,7 @@ function renderDevices() {
     avatar(p),
     h('div', { class: 'grow' },
       h('div', { class: 'row', style: 'gap:6px' }, h('b', null, p.name), h('span', { class: 'tag' }, p.level), p.group ? h('span', { class: 'tag' }, p.group) : null),
-      h('div', { class: 'small muted' }, [p.did, p.os, p.user ? mpText('使用者 ') + p.user : '', p.online ? mpText('線上') : fmtAgo(p.last_seen_at), p.lan_ip ? 'LAN ' + p.lan_ip : ''].filter(Boolean).join(' · ')),
-      h('div', { class: 'small muted mono', title: mpText('金鑰指紋') }, p.fingerprint || '')),
+      h('div', { class: 'small muted' }, [p.did, p.os, p.user ? mpText('使用者 ') + p.user : '', p.online ? mpText('線上') : fmtAgo(p.last_seen_at), p.lan_ip ? 'LAN ' + p.lan_ip : ''].filter(Boolean).join(' · '))),
     h('div', { class: 'row', style: 'flex-wrap:nowrap' },
       h('button', { class: 'btn sm', onclick: () => { go('chat'); openPeer(p.id); } }, mpText('傳訊')),
       isAdmin ? h('button', { class: 'btn sm', onclick: () => grantForm(p) }, mpText('申請等級')) : null)));
@@ -810,8 +810,8 @@ function renderDevices() {
     h('div', { class: 'page-head' }, h('h1', null, mpText('裝置')), h('span', { class: 'grow' }), h('button', { class: 'btn', onclick: () => loadPeers(true) }, icon('refresh'), mpText('重新整理'))),
     h('div', { class: 'card' }, h('h2', null, mpText('這台裝置')), h('dl', { class: 'kv' },
       h('dt', null, mpText('名稱')), h('dd', null, me.name), h('dt', null, mpText('裝置 ID')), h('dd', { class: 'mono' }, me.id + (me.did ? '（' + me.did + '）' : '')),
-      h('dt', null, mpText('等級')), h('dd', null, h('span', { class: 'tag accent' }, me.level || '—'), isAdmin ? h('span', { class: 'small muted' }, mpText('  可替其他裝置申請等級（需管理員審批）')) : null),
-      h('dt', null, mpText('金鑰指紋')), h('dd', { class: 'mono' }, me.fingerprint))),
+      h('dt', null, mpText('等級')), h('dd', null, h('span', { class: 'tag accent' }, me.level || '—'), isAdmin ? h('span', { class: 'small muted' }, mpText('  可替其他裝置申請等級（需管理員審批）')) : null)),
+      h('button', {class:'btn', type:'button', onclick:openKeyView},mpText('查看自己的密鑰'))),
     h('div', { class: 'card' }, h('h2', null, mpText('可見的裝置（') + peers.length + '）'), peers.length ? h('div', { class: 'list' }, rows) : h('div', { class: 'empty' }, mpText('沒有可見的裝置'))),
     h('div', { class: 'card' }, h('h2', null, mpText('等級申請')), grants));
   dev('GET', 'me/grants').then((r) => {
@@ -874,8 +874,8 @@ function renderSettings() {
     h('div', { class: 'card' }, h('h2', null, mpText('這台裝置')),
       h('label', { class: 'field' }, h('span', null, mpText('裝置名稱')), h('div', { class: 'row' }, h('div', { class: 'grow' }, name), h('button', { class: 'btn', onclick: () => save({ name: name.value }) }, mpText('儲存')))),
       h('dl', { class: 'kv', style: 'margin-top:12px' },
-        h('dt', null, mpText('裝置 ID')), h('dd', { class: 'mono' }, d.id), h('dt', null, mpText('等級')), h('dd', null, d.level),
-        h('dt', null, mpText('身分金鑰指紋')), h('dd', { class: 'mono' }, d.fingerprint), h('dt', null, mpText('E2E 公鑰')), h('dd', { class: 'mono small' }, d.box_pubkey))),
+        h('dt', null, mpText('裝置 ID')), h('dd', { class: 'mono' }, d.id), h('dt', null, mpText('等級')), h('dd', null, d.level)),
+      h('button', {class:'btn', type:'button', onclick:openKeyView},mpText('查看自己的密鑰'))),
     h('div', { class: 'card' }, h('h2', null, mpText('傳輸模式')),
       modeSeg, h('p', { class: 'small muted' }, MODE_DESC[s.mode || 'auto']),
       overrides.length ? h('div', null, h('div', { class: 'small muted', style: 'margin:8px 0 4px' }, mpText('個別裝置的設定')),

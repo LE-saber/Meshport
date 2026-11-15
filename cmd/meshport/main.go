@@ -367,8 +367,8 @@ func printState(raw []byte) error {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return err
 	}
-	fmt.Printf("status:      %s %s\nserver:      %s\ndevice:      %s (%s)\nlevel:       %s\nfingerprint: %s\n",
-		v.Status, v.Error, v.Server, v.Device.Name, v.Device.ID, v.Device.Level, v.Device.Fingerprint)
+	fmt.Printf("status:      %s %s\nserver:      %s\ndevice:      %s (%s)\nlevel:       %s\n",
+		v.Status, v.Error, v.Server, v.Device.Name, v.Device.ID, v.Device.Level)
 	if v.Status == "pending" {
 		fmt.Println("waiting for an administrator to approve this device")
 	}

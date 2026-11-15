@@ -29,8 +29,8 @@ type Peer struct {
 	Group       string    `json:"group"`
 	Online      bool      `json:"online"`
 	LastSeenAt  any       `json:"last_seen_at"`
-	BoxPubKey   string    `json:"box_pubkey"`
-	Fingerprint string    `json:"fingerprint"`
+	BoxPubKey   string    `json:"box_pubkey,omitempty"`
+	Fingerprint string    `json:"fingerprint,omitempty"`
 	LanIP       string    `json:"lan_ip"`
 	NATType     string    `json:"nat_type"`
 	Link        *LinkView `json:"link,omitempty"`
@@ -515,7 +515,9 @@ func (a *Agent) peerList() []Peer {
 	a.mu.Lock()
 	out := make([]Peer, 0, len(a.peers))
 	for _, p := range a.peers {
-		out = append(out, *p)
+		view := *p
+		view.BoxPubKey, view.Fingerprint = "", ""
+		out = append(out, view)
 	}
 	a.mu.Unlock()
 	for i := range out {

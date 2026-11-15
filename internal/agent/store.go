@@ -35,16 +35,17 @@ type Settings struct {
 }
 
 type State struct {
-	ServerPin string   `json:"server_pin,omitempty"`
-	Server    string   `json:"server"`
-	DeviceID  string   `json:"device_id"`
-	DID       string   `json:"did"`
-	Name      string   `json:"name"`
-	Level     string   `json:"level"`
-	Status    string   `json:"status"`   // active | pending
-	Identity  string   `json:"identity"` // base64 ed25519 seed (32 bytes)
-	BoxKey    string   `json:"box_key"`  // base64 x25519 private key
-	Settings  Settings `json:"settings"`
+	KeyViewPasswordHash string   `json:"key_view_password_hash,omitempty"`
+	ServerPin           string   `json:"server_pin,omitempty"`
+	Server              string   `json:"server"`
+	DeviceID            string   `json:"device_id"`
+	DID                 string   `json:"did"`
+	Name                string   `json:"name"`
+	Level               string   `json:"level"`
+	Status              string   `json:"status"`   // active | pending
+	Identity            string   `json:"identity"` // base64 ed25519 seed (32 bytes)
+	BoxKey              string   `json:"box_key"`  // base64 x25519 private key
+	Settings            Settings `json:"settings"`
 }
 
 func (s State) identity() ed25519.PrivateKey {

@@ -91,6 +91,8 @@ func (a *Agent) localHandler() http.Handler {
 		return ok(), nil
 	})
 	h("GET /local/state", func(w http.ResponseWriter, r *http.Request) (any, error) { return a.stateView(), nil })
+	h("POST /local/keys/password", a.hSetKeyPassword)
+	h("POST /local/keys/view", a.hViewKeys)
 	h("POST /local/setup", func(w http.ResponseWriter, r *http.Request) (any, error) {
 		var req SetupRequest
 		if err := readJSON(r, &req); err != nil {
@@ -493,6 +495,18 @@ func (a *Agent) hProxy(w http.ResponseWriter, r *http.Request) (any, error) {
 	}
 	if strings.TrimSpace(out) == "" {
 		return ok(), nil
+	}
+	if p == "me/device" {
+		var response map[string]any
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			return nil, err
+		}
+		if d, ok := response["device"].(map[string]any); ok {
+			delete(d, "pubkey")
+			delete(d, "box_pubkey")
+			delete(d, "fingerprint")
+		}
+		return response, nil
 	}
 	return json.RawMessage(out), nil
 }

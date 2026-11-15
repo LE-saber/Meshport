@@ -48,9 +48,10 @@ type Options struct {
 
 // Agent is one running client instance.
 type Agent struct {
-	opt  Options
-	log  *slog.Logger
-	logs *logRing
+	keyAccess keyAccess
+	opt       Options
+	log       *slog.Logger
+	logs      *logRing
 
 	st    *stateStore
 	msgs  *messageStore
@@ -243,24 +244,23 @@ func (a *Agent) housekeeping(ctx context.Context) {
 // ---------- state view for the UI ----------
 
 type StateView struct {
-	Status   string    `json:"status"`
-	Error    string    `json:"error,omitempty"`
-	Server   string    `json:"server"`
-	Device   DeviceRef `json:"device"`
-	Settings Settings  `json:"settings"`
-	Version  string    `json:"version"`
-	Platform string    `json:"platform"`
-	Caps     []string  `json:"caps"`
-	Unread   int       `json:"unread"`
+	KeyPasswordSet bool      `json:"key_password_set"`
+	Status         string    `json:"status"`
+	Error          string    `json:"error,omitempty"`
+	Server         string    `json:"server"`
+	Device         DeviceRef `json:"device"`
+	Settings       Settings  `json:"settings"`
+	Version        string    `json:"version"`
+	Platform       string    `json:"platform"`
+	Caps           []string  `json:"caps"`
+	Unread         int       `json:"unread"`
 }
 
 type DeviceRef struct {
-	ID          string `json:"id"`
-	DID         string `json:"did"`
-	Name        string `json:"name"`
-	Level       string `json:"level"`
-	Fingerprint string `json:"fingerprint"`
-	BoxPubKey   string `json:"box_pubkey"`
+	ID    string `json:"id"`
+	DID   string `json:"did"`
+	Name  string `json:"name"`
+	Level string `json:"level"`
 }
 
 func (a *Agent) stateView() StateView {
@@ -270,7 +270,8 @@ func (a *Agent) stateView() StateView {
 	level := a.level
 	a.mu.Unlock()
 	v.Server = s.Server
-	v.Device = DeviceRef{ID: s.DeviceID, DID: s.DID, Name: s.Name, Level: level, Fingerprint: s.fingerprint(), BoxPubKey: s.boxPub()}
+	v.Device = DeviceRef{ID: s.DeviceID, DID: s.DID, Name: s.Name, Level: level}
+	v.KeyPasswordSet = s.KeyViewPasswordHash != ""
 	v.Settings = s.Settings
 	v.Version = a.opt.Version
 	v.Platform = a.opt.Platform

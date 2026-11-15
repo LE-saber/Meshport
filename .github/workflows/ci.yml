@@ -35,6 +35,7 @@ jobs:
         run: |
           node --check internal/agent/web/app.js
           node --check internal/agent/web/enrollment.js
+          node --check internal/agent/web/keys.js
           node --test tests/client_i18n.test.cjs
           make console
 
