@@ -1,38 +1,38 @@
-# 安全注册、二维码和语言
+# Secure enrollment, QR codes, and languages
 
-客户端保留繁体中文并加入简体中文；管理控制台保留繁体中文、日文和英文并加入简体中文。客户端在注册页和设置页切换语言，控制台在语言按钮或系统设置中切换。字体使用本机对应的中文字体，不依赖 CDN。界面词典不会转换设备名称、消息、文件名或密钥。
+Meshport uses English as the default language for new installations. The client supports English, Traditional Chinese, and Simplified Chinese; the server console additionally supports Japanese. Language controls appear on the client enrollment/settings screens and in the console toolbar/settings. UI translations never modify device names, messages, file names, or cryptographic key material.
 
-客户端平时隐藏公钥和指纹。点击「查看自己的密钥」时，首次先设置本机密钥查看密码（至少 8 个字符），之后每次查看均需输入该密码。密码只以加盐校验值保存，不能通过首次设置接口覆盖已设置的密码。密钥详情关闭、切换后台或显示 60 秒后自动隐藏，私钥不会通过查看接口导出。该密码控制界面查看，后台通信继续使用设备内部密钥；它不改变系统对本机状态文件的存储保护方式。
+Client public keys and fingerprints are hidden until the user selects **View my keys**. On first access, the user creates a local key-view password of at least eight characters; subsequent access always requires it. Only a salted verifier is saved. The key viewer automatically hides secrets on dismissal, when backgrounded, or after 60 seconds. This password controls display of key information, not the device's underlying file-storage security.
 
-设备等级授权期限统一为 `1h / 6h / 24h / 7d / 30d / perm`，其中 `perm` 在界面显示为「永久」。这是设备等级的有效期，与一次性注册码的使用期限分别管理。
+Grant durations are `1h / 6h / 24h / 7d / 30d / perm`. A permanent grant is separate from the lifetime of the one-time enrollment credential.
 
-## 每台设备一个码
+## One code per device
 
-在控制台「设备管理 → 注册新设备」生成二维码及 `mpjoin1.` 注册码。每台设备单独生成一次，一个码只能注册一台设备。安卓客户端可用相机扫描；安卓及桌面客户端也可导入二维码图片或直接粘贴完整注册码。相机权限被拒绝时，仍可手动输入或导入图片。二维码与注册码包含相同的一次性秘密，请通过可信渠道交给对应设备。
+Under **Devices → Enroll device**, generate a `mpjoin1.` enrollment code and its QR representation. Each one-time code enrolls **one** device. Android can scan a QR code with its camera; Android and desktop clients can also import a QR image or paste the code. If camera access is denied, image import and manual entry remain available.
 
-注册码包含 HTTPS 服务器地址、独立的一次性随机秘密及服务器 TLS 公钥的 SHA-256 SPKI 指纹。公钥是公开的身份验证材料，不依赖隐藏公钥实现安全。TLS 使用非对称密码认证服务器并协商会话密钥；客户端在发送注册秘密前校验指纹，并保存该指纹供后续 HTTPS、WSS 和文件请求使用。错误公钥、跨服务器重定向和明文降级会失败。每台设备仍在本机生成独立的 Ed25519 身份私钥和 X25519 端到端加密私钥。
+The enrollment code contains the HTTPS endpoint, a unique secret, and the SHA-256 SPKI fingerprint of the server TLS public key. The client verifies the fingerprint **before** transmitting the enrollment secret and pins it for subsequent HTTPS, WSS, and file requests. A mismatched key, server-crossing redirect, or plaintext downgrade is rejected. Devices independently generate Ed25519 identity private keys and X25519 end-to-end encryption keys.
 
-服务端公钥通常由同一服务器上的设备共享；每台设备的注册码和设备私钥都不同。复制某设备已使用的码不能再次注册另一台设备。尚未使用的码等同一次性注册凭据，泄露时应在控制台撤销。
+Multiple devices may trust the same server public key, but their enrollment secrets and private keys differ. A used code cannot enroll another device; revoke unused leaked codes in the console.
 
-## 部署
+## Deployment
 
-后台继续监听 `127.0.0.1:18080`，管理页面、管理 API、控制台登录 API 均通过 SSH 转发访问。设备网关仅放行 `deploy/Caddyfile.pinned` 中列出的设备路由，其他路径返回 404。
+The private administration endpoint remains on `127.0.0.1:18080`, reachable over SSH forwarding. The device gateway exposes only the allowlisted routes in `deploy/Caddyfile.pinned`; all other paths return 404.
 
-生成稳定的服务器 TLS 私钥及证书后，后台配置加入：
+After provisioning a stable TLS private key and certificate, configure:
 
 ```yaml
 enrollment_url: https://PUBLIC_IP_OR_HOST
 enrollment_tls_cert: /etc/meshport/tls/device.crt
 ```
 
-网关提供同一证书；后台只读取公开证书，不需要读取私钥。反向代理须覆盖 `X-Forwarded-Proto`，后台 `trusted_proxies` 只信任实际网关（本机部署为环回地址）。自签证书通过注册码指纹建立信任，不需要客户端关闭证书校验，也不依赖域名 CA 申请成功。
+The gateway serves the same certificate. The backend reads only the public certificate; it does not need the private key. Configure the reverse proxy to override `X-Forwarded-Proto`, and limit `trusted_proxies` to the actual gateway. Public-key pinning allows use of a self-signed certificate without disabling TLS verification.
 
-务必备份私钥。续期证书可复用同一私钥及公钥；更换公钥后，已经注册的客户端会拒绝新公钥，需要重新建立信任。兼容旧设备的 HTTP 入口可以保留在 80 端口，但安全注册码不能在 HTTP 注册。
+Back up the TLS private key. Certificate renewal can reuse the same public/private key pair, but changing the public key requires re-establishing trust on enrolled clients. An older HTTP device entry point may remain on port 80 for compatibility, **but secure codes must never be used over HTTP**.
 
-数据库升级增加 `enroll_tokens.tls_required` 字段，应先备份数据库。旧的纯 `mpe_` 注册流程仍用于未配置安全注册的部署；不要从安全注册码中拆出该短令牌交给设备。
+Database migration adds `enroll_tokens.tls_required`; back up the database first. Legacy `mpe_` codes remain supported for deployments that do not enable secure enrollment. Do not extract or reuse the short token inside a secure code.
 
-## 开发验证
+## Development checks
 
-语言静态文件已经提交，运行时不需要 Node.js。更新词典后可在 `scripts/i18n` 中执行 `npm ci && npm run generate` 重新生成简体中文。二维码图片解码器 jsQR 已随客户端打包，其许可证见 `internal/agent/web/vendor/jsQR.LICENSE`。
+Translation dictionaries are committed to the repository; no Node.js service is needed at runtime. To regenerate Simplified Chinese resources, run `npm ci && npm run generate` in `scripts/i18n`. The packaged QR decoder is jsQR; see `internal/agent/web/vendor/jsQR.LICENSE`.
 
-验证包含：四种控制台语言、两种客户端语言、独立注册码和重复使用拒绝、公钥匹配及错误公钥拒绝、HTTP 降级拒绝、可信代理检查、加密连接下的消息及文件传输、客户端重启后公钥持久化，以及永久授权。
+Check all console and client locales, one-time code reuse rejection, correct and incorrect TLS pins, downgrade protection, trusted proxies, encrypted transfers, pinned key persistence across client restarts, and permanent grants.

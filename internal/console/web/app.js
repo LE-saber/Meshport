@@ -51,7 +51,7 @@
   let R = null;
   let raf = 0;
 
-  const S = () => DICT[ST.lang] || DICT.zh;
+  const S = () => DICT[ST.lang] || DICT.en;
   const F = (str, o) => String(str).replace(/\{(\w+)\}/g, (m, k) => (o[k] !== undefined ? o[k] : m));
   const role = () => (D.me && D.me.role) || 'viewer';
   const can = (r) => (RANK[role()] || 0) >= RANK[r];
@@ -69,7 +69,7 @@
     const c = T.pal(dark(), accentKey());
     document.body.style.background = c.bg;
     document.documentElement.style.colorScheme = dark() ? 'dark' : 'light';
-    document.documentElement.lang = LANG_TAGS[ST.lang] || 'zh-Hant-TW';
+    document.documentElement.lang = LANG_TAGS[ST.lang] || 'en';
     if (ST.view === 'admin') R.render('admin', adminVals(c));
     else if (ST.view === 'auth') R.render('auth', authVals(c));
   }
@@ -188,7 +188,7 @@
   // ---------------------------------------------------------------- preferences
   function initPrefs() {
     const l = pref('mp.lang');
-    ST.lang = l && DICT[l] ? l : 'zh';
+    ST.lang = l && DICT[l] ? l : 'en';
     ST.theme = pref('mp.theme') || null;
   }
   function applySettings() {
@@ -759,7 +759,7 @@
         discovery_scope: st.discovery_scope || 'all', relay_enabled: st.relay_enabled !== false, relay_max_file_mb: String(st.relay_max_file_mb || ''),
         message_retention_days: String(st.message_retention_days || ''), file_retention_hours: String(st.file_retention_hours || ''),
         backup_hour: String(st.backup_hour == null ? '' : st.backup_hour), backup_keep: String(st.backup_keep || ''), session_hours: String(st.session_hours || ''),
-        device_token_hours: String(st.device_token_hours || ''), abnormal_fail_limit: String(st.abnormal_fail_limit || ''), language: st.language || 'zh-TW',
+        device_token_hours: String(st.device_token_hours || ''), abnormal_fail_limit: String(st.abnormal_fail_limit || ''), language: st.language || 'en',
       },
       fields: [
         { k: 'console_name', label: s.setConsoleName, full: true },

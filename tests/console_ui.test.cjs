@@ -23,10 +23,10 @@ function app(respond = () => ({})) {
   const end = source.lastIndexOf('  boot();');
   assert.ok(end > 0);
   vm.runInContext(source.slice(0, end) + `
-    window.testApp = { ST, D, grantForm, formVals, adminVals, api, T };
+    window.testApp = { ST, D, grantForm, formVals, adminVals, api, T, initPrefs };
   })();`, scope);
   const a = scope.window.testApp;
-  a.ST.lang = 'zh'; a.ST.theme = 'light';
+  a.ST.lang = 'en'; a.ST.theme = 'light';
   a.D.me = { role: 'admin', user: { username: 'admin' } };
   return { a, requests, scope };
 }
@@ -90,4 +90,10 @@ test('communication view renders actual telemetry states and relay path', () => 
   assert.equal(view.commRows[0].via, 'TURN relay');
   assert.ok(view.commRows[0].stLabel);
   assert.notEqual(view.commRows[0].stLabel, 'up');
+});
+
+test('console starts in English without a saved language preference', () => {
+  const { a } = app();
+  a.initPrefs();
+  assert.equal(a.ST.lang, 'en');
 });

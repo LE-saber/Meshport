@@ -1,18 +1,18 @@
-# 服务器管理控制台
+# Server administration console
 
-控制台位于 `internal/console/web`，通过 Go embed 打包进 `meshportd`。本版使用新源码包恢复的原设计模板 `admin.tpl.html`、配色和繁中／日文／英文文案，由 `dc.js` 渲染；`app.js` 将真实 API 数据填入模板。使用同源 `/api/v1`、HttpOnly Cookie 和 WebSocket；运行时不需要 CDN 或额外的 Node 服务。
+The live console is located in `internal/console/web` and embedded in the `meshportd` binary using Go's embed facility. It uses the restored `admin.tpl.html` design template, `dc.js` renderer, and `app.js` for API-backed data. The console uses same-origin `/api/v1` requests, HttpOnly cookies, and WebSocket updates. It requires no runtime CDN or Node.js service.
 
-## 功能与授权
+English is the default language for new deployments. Traditional Chinese, Simplified Chinese, and Japanese remain selectable. A user's locally saved language is respected; the server's language setting applies when no local preference exists.
 
-八个页面覆盖概要、设备管理、通信管理、FRP、权限审批、安全、监控日志和系统 API。设备、映射、授权、用户、备份、Webhook 和设置来自服务器；无数据时显示空状态。
+## Capabilities and authorization
 
-控制台账号角色和设备等级相互独立。`operator` 或 `admin` 账号可以在“权限与审批 → 直接授予等级”为 active 设备授权。新设备若为 pending，应先在设备详情中核准。设备等级分为 guest、member、admin；member 可发布 FRP 服务，admin 级设备可替其他设备申请等级，最终由控制台操作员审批。
+The eight console sections are Overview, Devices, Communications, FRP, Access & Approvals, Security, Monitoring & Logs, and System & API. Devices, mappings, grants, users, backups, webhooks, and settings are loaded from the server; missing data is shown as empty states.
 
-没有 active 设备时，直接授予入口显示空状态提示。授权通过后设备会收到 `level.changed`，后端立即重新计算其能力，撤销时恢复先前等级。现有期限选项为 24 小时、7 天、30 天、90 天、永久。
+Console roles and device access levels are independent. Console operators and administrators may directly grant access levels to active devices. Pending devices must first be approved. Device levels are `guest`, `member`, and `admin`; members may publish FRP services, while admin-level devices may request grants for other devices subject to operator approval. Approved grants trigger `level.changed` and immediate capability re-evaluation. Revocations restore the preceding level.
 
-通信状态使用 `up/nego/idle/fail/closed`，路径使用 `p2p/relay/nego/fail/idle`。TURN 和服务器中继均属于 relay，可由每行的 via 说明区别。本版以通信模式筛选并显示后端实际状态。安全中心支持审计 CSV 导出；保留的审计接口还支持 q 搜索，数据库接口支持 `?check=1` 完整性检查。恢复的模板没有单独的审计搜索页和完整性检查按钮。
+Communication session states are `up / nego / idle / fail / closed`; transport paths are `p2p / relay / nego / fail / idle`. TURN and server relay are both categorized as relay, with the `via` field identifying the actual transport. The Security section supports audit CSV export, the audit API supports `q` filtering, and the database endpoint supports `?check=1` integrity verification. The restored interface does not have dedicated controls for the last two API features.
 
-## 构建与验证
+## Build and validation
 
 ```bash
 make console
@@ -20,12 +20,10 @@ go test ./internal/api
 make release VERSION=1.0.0
 ```
 
-`make console` 检查所有内嵌脚本语法并运行前端回归测试。Go API 测试覆盖静态页面、缓存重新验证、安全头、审计搜索、通信筛选、授权通知及设备能力变化；真实 FRP 端到端测试需配置 `MESHPORT_FRPS` 和 `MESHPORT_FRPC`。更新后的模板和脚本使用内容 ETag 与 no-cache，避免升级后混用旧缓存。
+`make console` checks embedded JavaScript syntax and console regression tests. API integration tests cover static pages, caching, security headers, audit filtering, session filtering, grants, and device capability changes. Real FRP end-to-end tests require `MESHPORT_FRPS` and `MESHPORT_FRPC`. Embedded assets use content ETags and `Cache-Control: no-cache` to avoid inconsistent versions after upgrades.
 
-## 部署与升级
+## Deployment and upgrades
 
-配置 `web_dir: ""` 使用内嵌控制台，`web_dir: off` 禁用页面。非空目录仍会优先覆盖内嵌页面，适用于自定义构建。旧版 `web/console` 和生成工具留作历史参考，不再作为发行版默认页面或当前测试对象。
+Set `web_dir: ""` to use the embedded console; set `web_dir: off` to disable the UI. A nonempty custom directory overrides the embedded assets. The older `web/console` design bundle is retained as a reference, **not** as the default production UI.
 
-从外置页面升级时，先备份二进制、配置和数据库，再原子替换 `meshportd`，清空旧的 web_dir 并重启。不要重新初始化数据库。回滚时恢复原二进制及配置。
-
-管理入口保持 `listen: 127.0.0.1:18080`。手机第一版连接测试由单独的 HTTP 网关只转发设备接口，管理页面和管理 API 仍只走 SSH。已有 SSH 一键访问脚本继续可用，详见 [PRIVATE_DEPLOY.md](PRIVATE_DEPLOY.md)。
+Before migrating from an external console, back up the binary, configuration, and database; replace `meshportd`, clear the obsolete `web_dir`, and restart. Do not reinitialize the database. The private deployment binds administration to `127.0.0.1:18080`; device traffic uses a separate, allowlisted gateway. See [Private deployment](PRIVATE_DEPLOY.md).
